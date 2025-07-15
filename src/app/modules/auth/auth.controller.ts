@@ -14,15 +14,6 @@ const credentialsLogin = catchAsync(
   async (req: Request, res: Response, next: NextFunction) => {
     const loginInfo = await AuthServices.credentialsLoginService(req.body);
 
-    // res.cookie("accessToken", loginInfo.accessToken, {
-    //   httpOnly: true,
-    //   secure: false,
-    // });
-
-    // res.cookie("refreshToken", loginInfo.refreshToken, {
-    //   httpOnly: true,
-    //   secure: false,
-    // });
     setAuthCookie(res, loginInfo);
 
     sendResponse(res, {
@@ -47,15 +38,11 @@ const getNewAccessToken = catchAsync(
     );
 
     setAuthCookie(res, tokenInfo);
-    // res.cookie("accessToken", tokenInfo.accessToken, {
-    //   httpOnly: true,
-    //   secure: false,
-    // });
 
     sendResponse(res, {
       success: true,
       statusCode: httpStatus.OK,
-      message: "new access token generated successfully",
+      message: "New access token generated successfully",
       data: tokenInfo,
     });
   }
@@ -86,8 +73,8 @@ const logout = catchAsync(
 
 const resetPassword = catchAsync(
   async (req: Request, res: Response, next: NextFunction) => {
-    const newPassword = req.body.newPassword;
     const oldPassword = req.body.oldPassword;
+    const newPassword = req.body.newPassword;
     const decodedToken = req.user;
 
     await AuthServices.resetPassword(
@@ -115,19 +102,14 @@ const googleCallbackController = catchAsync(
 
     const user = req.user;
 
-    console.log("AMI USER=>", user);
     if (!user) {
       throw new AppError(httpStatus.NOT_FOUND, "User Not Found");
     }
+
     const tokenInfo = createUserTokens(user);
+
     setAuthCookie(res, tokenInfo);
 
-    // sendResponse(res, {
-    //   success: true,
-    //   statusCode: httpStatus.OK,
-    //   message: "password changed successfully",
-    //   data: null,
-    // });
     res.redirect(`${envVars.FRONTEND_URL}/${redirectTo}`);
   }
 );

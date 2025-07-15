@@ -17,18 +17,20 @@ passport.use(
       callbackURL: envVars.GOOGLE_CALLBACK_URL,
     },
     async (
-      accessToken: string,
-      refreshToken: string,
+      _accessToken: string,
+      _refreshToken: string,
       profile: Profile,
       done: VerifyCallback
     ) => {
       try {
         const email = profile.emails?.[0].value;
+
         if (!email) {
-          return done(null, false, { mesaage: "No email found" });
+          return done(null, false, { message: "No email found" });
         }
 
         let user = await User.findOne({ email });
+
         if (!user) {
           user = await User.create({
             email,
@@ -46,8 +48,7 @@ passport.use(
         }
 
         return done(null, user);
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      } catch (error: any) {
+      } catch (error) {
         console.log("Google strategy Error", error);
         return done(error);
       }
