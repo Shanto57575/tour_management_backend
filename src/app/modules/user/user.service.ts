@@ -24,12 +24,14 @@ const createUserService = async (payload: Partial<IUser>) => {
     provider: "credentials",
     providerId: email as string,
   };
+
   const user = await User.create({
     email,
     password: hashedPassword,
     auths: [authProvider],
     ...rest,
   });
+
   return user;
 };
 

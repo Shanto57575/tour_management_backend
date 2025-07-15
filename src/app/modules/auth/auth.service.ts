@@ -14,18 +14,20 @@ import { envVars } from "../../config/env";
 const credentialsLoginService = async (payload: Partial<IUser>) => {
   const { email, password } = await payload;
   const isUserExists = await User.findOne({ email });
+
   if (!isUserExists) {
     throw new AppError(httpStatus.BAD_REQUEST, "user does not exist");
   }
+
   const isPasswordMatched = await bcryptjs.compare(
     password as string,
     isUserExists.password as string
   );
+
   if (!isPasswordMatched) {
     throw new AppError(httpStatus.BAD_REQUEST, "Invalid credentials");
   }
 
-  //   const { password, ...rest } = isUserExists;
   const userTokens = createUserTokens(isUserExists);
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
