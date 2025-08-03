@@ -75,7 +75,11 @@ const deleteTourType = catchAsync(
 
 const createTour = catchAsync(
   async (req: Request, res: Response, next: NextFunction) => {
-    const tourInfo = await TourService.createTourService(req.body);
+    const payload = {
+      ...req.body,
+      images: (req.files as Express.Multer.File[]).map((file) => file.path),
+    };
+    const tourInfo = await TourService.createTourService(payload);
 
     sendResponse(res, {
       statusCode: httpStatus.CREATED,
@@ -117,9 +121,13 @@ const getSingleTour = catchAsync(
 
 const updateTour = catchAsync(
   async (req: Request, res: Response, next: NextFunction) => {
+    const payload = {
+      ...req.body,
+      images: (req.files as Express.Multer.File[])?.map((file) => file.path),
+    };
     const updatedTour = await TourService.updateTourService(
       req.params.id,
-      req.body
+      payload
     );
     sendResponse(res, {
       statusCode: httpStatus.OK,

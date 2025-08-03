@@ -4,6 +4,7 @@ import httpStatus from "http-status-codes";
 import { Division } from "./division.model";
 import { QueryBuilder } from "../../utils/queryBuilder";
 import { divisionSearchableFields } from "./division.constant";
+import { deleteImageFromCloudinary } from "../../config/cloudinary.config";
 
 const createDivisionService = async (payload: Partial<IDivision>) => {
   if (!payload.name) {
@@ -49,6 +50,10 @@ const updateDivisionService = async (
   divisionId: string,
   payload: Partial<IDivision>
 ) => {
+  const existingDivision = await Division.findById(divisionId);
+  if (!existingDivision) {
+    throw new AppError(httpStatus.NOT_FOUND, "Division Not Found!");
+  }
   const updatedDivision = await Division.findByIdAndUpdate(
     divisionId,
     payload,
@@ -57,6 +62,10 @@ const updateDivisionService = async (
       new: true,
     }
   );
+
+  if (payload.thumbnail && existingDivision.thumbnail) {
+    await deleteImageFromCloudinary(existingDivision.thumbnail);
+  }
   return updatedDivision;
 };
 

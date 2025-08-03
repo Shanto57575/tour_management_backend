@@ -40,6 +40,20 @@ const updateUser = catchAsync(
   }
 );
 
+const getProfile = catchAsync(
+  async (req: Request, res: Response, next: NextFunction) => {
+    const decodedToken = req.user as JwtPayload;
+    const result = await UserServices.getProfileService(decodedToken.userId);
+
+    sendResponse(res, {
+      success: true,
+      statusCode: httpStatus.OK,
+      message: "User data retrieved successfully",
+      data: result,
+    });
+  }
+);
+
 const getAllUsers = catchAsync(
   async (req: Request, res: Response, next: NextFunction) => {
     const query = req.query as Record<string, string>;
@@ -70,6 +84,7 @@ const getSingleUser = catchAsync(
 
 export const UserController = {
   createUser,
+  getProfile,
   getAllUsers,
   getSingleUser,
   updateUser,

@@ -92,13 +92,19 @@ const getAllUsersServices = async (query: Record<string, string>) => {
   };
 };
 
+const getProfileService = async (userId: string) => {
+  const result = await User.findById(userId).select("-password");
+  return result;
+};
+
 const getSingleUserService = async (userId: string) => {
-  return await User.findById(userId);
+  return await User.findById(userId).select("-password");
 };
 
 export const UserServices = {
   createUserService,
   getAllUsersServices,
   getSingleUserService,
+  getProfileService,
   updateUserService,
 };

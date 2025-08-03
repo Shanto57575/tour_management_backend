@@ -1,7 +1,7 @@
 /* eslint-disable no-console */
+import app from "./app";
 import { Server } from "http";
 import mongoose from "mongoose";
-import app from "./app";
 import { envVars } from "./app/config/env";
 import { seedSuperAdmin } from "./app/utils/seedSuperAdmin";
 
@@ -59,5 +59,5 @@ process.on("uncaughtException", (err) => {
   process.exit(1);
 });
 
-// Promise.reject(new Error("Error khaisi...."));
-// throw new Error("unCaught exception error khaisi");
+// Promise.reject(new Error("Got Error...."));
+// throw new Error("Got unCaught exception error");

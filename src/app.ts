@@ -1,13 +1,13 @@
-import express from "express";
 import cors from "cors";
-import { globalErrorHandler } from "./app/middlewares/globalErrorHandler";
-import { router } from "./app/router";
-import notFound from "./app/middlewares/notFound";
-import cookieParser from "cookie-parser";
-import passport from "passport";
-import expressSession from "express-session";
+import express from "express";
 import "./app/config/passport";
+import passport from "passport";
+import { router } from "./app/router";
+import cookieParser from "cookie-parser";
 import { envVars } from "./app/config/env";
+import expressSession from "express-session";
+import notFound from "./app/middlewares/notFound";
+import { globalErrorHandler } from "./app/middlewares/globalErrorHandler";
 
 const app = express();
 
@@ -28,7 +28,7 @@ app.use(cors());
 app.use("/api/v1", router);
 
 app.get("/", (req, res) => {
-  res.status(200).json({ message: "Welcome to tour management app" });
+  res.status(200).json({ message: "Welcome to Tour Management App" });
 });
 
 app.use(globalErrorHandler);

@@ -67,6 +67,10 @@ export const createTourZodSchema = z.object({
   amenities: z.array(z.string()).optional(),
 
   tourPlan: z.array(z.string()).optional(),
+
+  departureLocation: z.string().optional(),
+
+  arrivalLocation: z.string().optional(),
 });
 
 export const updateTourZodSchema = z.object({
@@ -129,4 +133,10 @@ export const updateTourZodSchema = z.object({
   amenities: z.array(z.string()).optional(),
 
   tourPlan: z.array(z.string()).optional(),
+
+  departureLocation: z.string().optional(),
+
+  arrivalLocation: z.string().optional(),
+
+  deleteImages: z.array(z.string()).optional(),
 });
