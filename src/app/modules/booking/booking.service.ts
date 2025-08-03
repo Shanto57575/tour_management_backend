@@ -11,10 +11,7 @@ import { SSLService } from "../sslCommerz/sslCommerz.service";
 import { QueryBuilder } from "../../utils/queryBuilder";
 import { bookingSearchableFields } from "./booking.constant";
 import { JwtPayload } from "jsonwebtoken";
-
-const getTransactionId = () => {
-  return `tran_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
-};
+import { getTransactionId } from "../../utils/transactionId";
 
 const createBookingService = async (
   payload: Partial<IBooking>,
