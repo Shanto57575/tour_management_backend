@@ -23,7 +23,7 @@ router.get("/me", checkAuth(...Object.values(Role)), UserController.getProfile);
 
 router.get(
   "/:id",
-  checkAuth(...Object.values(Role)),
+  checkAuth(Role.ADMIN, Role.SUPER_ADMIN),
   UserController.getSingleUser
 );
 

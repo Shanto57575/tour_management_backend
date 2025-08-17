@@ -22,22 +22,24 @@ passport.use(
         const isUserExist = await User.findOne({ email });
 
         if (!isUserExist) {
-          return done("User does not exist!");
+          return done(null, false, { message: "User does not exist!" });
         }
 
         if (!isUserExist.isVerified) {
-          return done("user is not verified");
+          return done(null, false, { message: "User is not verified" });
         }
 
         if (
           isUserExist.isActive === IsActive.BLOCKED ||
           isUserExist.isActive === IsActive.INACTIVE
         ) {
-          return done(`User is ${isUserExist.isActive}`);
+          return done(null, false, {
+            message: `User is ${isUserExist.isActive}`,
+          });
         }
 
         if (isUserExist.isDeleted) {
-          return done("user is Deleted");
+          return done(null, false, { message: "user is Deleted" });
         }
 
         const isGoogleAuthenticated = isUserExist.auths.some(
