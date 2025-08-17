@@ -34,7 +34,10 @@ const createUserService = async (payload: Partial<IUser>) => {
     ...rest,
   });
 
-  return user;
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { password: pass, ...remainingData } = user.toObject();
+
+  return remainingData;
 };
 
 const updateUserService = async (
@@ -42,6 +45,25 @@ const updateUserService = async (
   payload: Partial<IUser>,
   decodedToken: JwtPayload
 ) => {
+  if (decodedToken.role === Role.USER || decodedToken.role === Role.GUIDE) {
+    if (userId !== decodedToken.userId) {
+      throw new AppError(401, "You are not authorized");
+    }
+  }
+
+  const isUserExists = await User.findById(userId);
+
+  if (!isUserExists) {
+    throw new AppError(404, "User Not Found");
+  }
+
+  if (
+    decodedToken.role === Role.ADMIN &&
+    isUserExists.role === Role.SUPER_ADMIN
+  ) {
+    throw new AppError(401, "You are not authorized");
+  }
+
   if (payload.role) {
     if (decodedToken.role === Role.USER || decodedToken.role === Role.GUIDE) {
       throw new AppError(httpStatus.UNAUTHORIZED, "Your are not authorized");
@@ -56,12 +78,6 @@ const updateUserService = async (
     if (decodedToken.role === Role.USER || decodedToken.role == Role.GUIDE) {
       throw new AppError(httpStatus.UNAUTHORIZED, "Your are not authorized");
     }
-  }
-  if (payload.password) {
-    payload.password = await bcryptjs.hash(
-      payload.password,
-      envVars.BCRYPT_SALT_ROUND
-    );
   }
 
   const newUpdatedUser = await User.findByIdAndUpdate(userId, payload, {

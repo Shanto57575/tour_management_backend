@@ -19,7 +19,7 @@ const createTourTypeService = async (payload: ITourType) => {
 };
 
 const getAllTourTypeService = async () => {
-  return await TourType.find();
+  return await TourType.find().sort({ createdAt: -1 });
 };
 
 const getSingleTourTypeService = async (tourTypeId: string) => {

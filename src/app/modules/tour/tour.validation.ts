@@ -30,8 +30,8 @@ export const createTourZodSchema = z.object({
 
   description: z
     .string({ invalid_type_error: "description must be string" })
-    .min(20, { message: "description must be at least 20 characters long" })
-    .max(200, { message: "description cannot exceed 200 characters" })
+    .min(2, { message: "description must be at least 2 characters long" })
+    .max(400, { message: "description cannot exceed 400 characters" })
     .optional(),
 
   location: z
@@ -89,7 +89,7 @@ export const updateTourZodSchema = z.object({
   description: z
     .string({ invalid_type_error: "Description must be string" })
     .min(20, "Description must be at least 20 characters long")
-    .max(200, "Description cannot exceed 200 characters")
+    .max(400, "Description cannot exceed 400 characters")
     .optional(),
 
   location: z
