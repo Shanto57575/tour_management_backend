@@ -46,6 +46,7 @@ const getSingleTourType = catchAsync(
 
 const updateTourType = catchAsync(
   async (req: Request, res: Response, next: NextFunction) => {
+    console.log("req.params.id, req.body", req.params.id,req.body)
     const updatedTourTypeInfo = await TourService.updateTourTypeService(
       req.params.id,
       req.body
