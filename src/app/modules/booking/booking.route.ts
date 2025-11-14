@@ -11,14 +11,14 @@ import {
 const router = Router();
 
 router.post(
-  "/",
+  "/create-booking",
   checkAuth(...Object.values(Role)),
   validateRequest(createBookingZodSchema),
   BookingController.createBooking
 );
 
 router.get(
-  "/",
+  "/all-bookings",
   checkAuth(Role.ADMIN, Role.SUPER_ADMIN),
   BookingController.getAllBookings
 );

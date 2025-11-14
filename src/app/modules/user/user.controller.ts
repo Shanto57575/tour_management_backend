@@ -5,82 +5,89 @@ import { UserServices } from "./user.service";
 import { catchAsync } from "../../utils/catchAsync";
 import { sendResponse } from "../../utils/sendResponse";
 import { JwtPayload } from "jsonwebtoken";
+import { uploadBufferToCloudinary } from "../../config/cloudinary.config";
 
-const createUser = catchAsync(
-  async (req: Request, res: Response, next: NextFunction) => {
-    const user = await UserServices.createUserService(req.body);
+const createUser = catchAsync(async (req: Request, res: Response) => {
+  const user = await UserServices.createUserService(req.body);
 
-    sendResponse(res, {
-      success: true,
-      statusCode: httpStatus.CREATED,
-      message: "User created successfully",
-      data: user,
-    });
-  }
-);
+  sendResponse(res, {
+    success: true,
+    statusCode: httpStatus.CREATED,
+    message: "User created successfully",
+    data: user,
+  });
+});
 
-const updateUser = catchAsync(
-  async (req: Request, res: Response, next: NextFunction) => {
-    const userId = req.params.id;
-    const verifiedToken = req.user;
-    const payload = req.body;
+const updateUser = catchAsync(async (req: Request, res: Response) => {
+  const userId = req.params.id;
+  const verifiedToken = req.user;
 
-    const user = await UserServices.updateUserService(
-      userId,
-      payload,
-      verifiedToken as JwtPayload
+  console.log("userId==>", userId);
+  console.log("verifiedToken==>", verifiedToken);
+  console.log("file==>", req.file);
+
+  let userImage;
+  if (req.file) {
+    userImage = await uploadBufferToCloudinary(
+      req.file.buffer,
+      req.file.originalname
     );
-
-    sendResponse(res, {
-      success: true,
-      statusCode: httpStatus.CREATED,
-      message: "User updated successfully",
-      data: user,
-    });
   }
-);
 
-const getProfile = catchAsync(
-  async (req: Request, res: Response, next: NextFunction) => {
-    const decodedToken = req.user as JwtPayload;
-    const result = await UserServices.getProfileService(decodedToken.userId);
+  const payload = {
+    ...req.body,
+    picture: userImage?.secure_url,
+  };
 
-    sendResponse(res, {
-      success: true,
-      statusCode: httpStatus.OK,
-      message: "User data retrieved successfully",
-      data: result,
-    });
-  }
-);
+  const user = await UserServices.updateUserService(
+    userId,
+    payload,
+    verifiedToken as JwtPayload
+  );
 
-const getAllUsers = catchAsync(
-  async (req: Request, res: Response, next: NextFunction) => {
-    const query = req.query as Record<string, string>;
+  sendResponse(res, {
+    success: true,
+    statusCode: httpStatus.OK,
+    message: "User updated successfully",
+    data: user,
+  });
+});
 
-    const result = await UserServices.getAllUsersServices(query);
+const getProfile = catchAsync(async (req: Request, res: Response) => {
+  const decodedToken = req.user as JwtPayload;
+  const result = await UserServices.getProfileService(decodedToken.userId);
 
-    sendResponse(res, {
-      success: true,
-      statusCode: httpStatus.OK,
-      message: "All User retrieved successfully",
-      data: result,
-    });
-  }
-);
+  sendResponse(res, {
+    success: true,
+    statusCode: httpStatus.OK,
+    message: "User data retrieved successfully",
+    data: result,
+  });
+});
 
-const getSingleUser = catchAsync(
-  async (req: Request, res: Response, next: NextFunction) => {
-    const result = await UserServices.getSingleUserService(req.params.id);
+const getAllUsers = catchAsync(async (req: Request, res: Response) => {
+  const query = req.query as Record<string, string>;
 
-    sendResponse(res, {
-      success: true,
-      statusCode: httpStatus.CREATED,
-      message: "user retrieved successfully",
-      data: result,
-    });
-  }
-);
+  const result = await UserServices.getAllUsersServices(query);
+
+  sendResponse(res, {
+    success: true,
+    statusCode: httpStatus.OK,
+    message: "All User retrieved successfully",
+    data: result,
+  });
+});
+
+const getSingleUser = catchAsync(async (req: Request, res: Response) => {
+  const result = await UserServices.getSingleUserService(req.params.id);
+
+  sendResponse(res, {
+    success: true,
+    statusCode: httpStatus.CREATED,
+    message: "user retrieved successfully",
+    data: result,
+  });
+});
 
 export const UserController = {
   createUser,

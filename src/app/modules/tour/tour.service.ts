@@ -77,7 +77,7 @@ const getAllTourService = async (query: Record<string, string>) => {
 };
 
 const getSingleTourService = async (slug: string) => {
-  return await Tour.findOne({ slug });
+  return await Tour.findOne({ slug }).lean();
 };
 
 const updateTourService = async (tourId: string, payload: Partial<ITour>) => {

@@ -8,7 +8,8 @@ export const createDivisionZodSchema = z.object({
   slug: z
     .string({ invalid_type_error: "slug must be string" })
     .min(3, { message: "slug must be at least 3 characters long" })
-    .max(30, { message: "slug cannot exceed 30 characters" }),
+    .max(30, { message: "slug cannot exceed 30 characters" })
+    .optional(),
   thumbnail: z
     .string({ invalid_type_error: "thumbnail url must be string" })
     .optional(),
