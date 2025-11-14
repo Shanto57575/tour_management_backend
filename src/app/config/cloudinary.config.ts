@@ -10,13 +10,26 @@ cloudinary.config({
   api_secret: envVars.CLOUDINARY.CLOUDINARY_API_SECRET,
 });
 
+const buildUniqueFileName = (originalName: string) => {
+  const cleaned = originalName
+    .toLowerCase()
+    .replace(/\s+/g, "-")
+    .replace(/\./g, "-")
+    .replace(/[^a-z0-9\-.]/g, "");
+
+  const unique =
+    Math.random().toString(36).substring(2) + "-" + Date.now() + "-" + cleaned;
+
+  return unique;
+};
+
 export const uploadBufferToCloudinary = async (
   buffer: Buffer,
-  fileName: string
+  originalName: string
 ): Promise<UploadApiResponse | undefined> => {
   try {
     return new Promise((resolve, reject) => {
-      const public_id = `pdf/${fileName}-${Date.now()}`;
+      const fileName = buildUniqueFileName(originalName);
       const bufferStream = new stream.PassThrough();
       bufferStream.end(buffer);
 
@@ -24,20 +37,17 @@ export const uploadBufferToCloudinary = async (
         .upload_stream(
           {
             resource_type: "auto",
-            public_id: public_id,
-            folder: "pdf",
+            folder: "uploads",
+            public_id: fileName,
           },
           (error, result) => {
-            if (error) {
-              return reject(error);
-            }
-            resolve(result);
+            if (error) return reject(error);
+            resolve(result || undefined);
           }
         )
         .end(buffer);
     });
   } catch (error: any) {
-    console.log(error);
     throw new AppError(
       500,
       `Error uploading buffer to cloudinary ${error.message}`
@@ -53,12 +63,11 @@ export const deleteImageFromCloudinary = async (url: string) => {
     if (match && match[1]) {
       const public_id = match[1];
       await cloudinary.uploader.destroy(public_id);
-      console.log(`File ${public_id} is deleted from cloudinary`);
+      console.log(`File ${public_id} deleted from Cloudinary`);
     }
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } catch (error: any) {
     throw new AppError(401, "Cloudinary Image deletion failed!", error.message);
   }
 };
+
 export const cloudinaryUpload = cloudinary;

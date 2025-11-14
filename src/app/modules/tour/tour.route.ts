@@ -55,13 +55,9 @@ router.post(
   TourController.createTour
 );
 
-router.get("/", checkAuth(...Object.values(Role)), TourController.getAllTour);
+router.get("/", TourController.getAllTour);
 
-router.get(
-  "/:slug",
-  checkAuth(...Object.values(Role)),
-  TourController.getSingleTour
-);
+router.get("/:slug", TourController.getSingleTour);
 
 router.patch(
   "/:id",

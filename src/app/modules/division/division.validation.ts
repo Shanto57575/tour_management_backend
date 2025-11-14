@@ -38,5 +38,6 @@ export const updateDivisionZodSchema = z.object({
     .string({ invalid_type_error: "description must be string" })
     .min(2, { message: "description must be at least 2 characters long" })
     .max(200, { message: "description cannot exceed 200 characters" })
-    .optional(),
+    .optional()
+    .or(z.literal("")),
 });

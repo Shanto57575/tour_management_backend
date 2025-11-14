@@ -5,11 +5,14 @@ import { Division } from "./division.model";
 import { QueryBuilder } from "../../utils/queryBuilder";
 import { divisionSearchableFields } from "./division.constant";
 import { deleteImageFromCloudinary } from "../../config/cloudinary.config";
+import slugify from "slugify";
 
 const createDivisionService = async (payload: Partial<IDivision>) => {
   if (!payload.name) {
     throw new AppError(httpStatus.BAD_REQUEST, "Name is required");
   }
+
+  const slug = slugify(payload.name, { lower: true, trim: true });
 
   const isDivisionExists = await Division.findOne({ name: payload.name });
 
@@ -17,7 +20,7 @@ const createDivisionService = async (payload: Partial<IDivision>) => {
     throw new AppError(httpStatus.BAD_REQUEST, "division already exists");
   }
 
-  const division = await Division.create(payload);
+  const division = await Division.create({ ...payload, slug });
 
   return division;
 };
@@ -54,9 +57,15 @@ const updateDivisionService = async (
   if (!existingDivision) {
     throw new AppError(httpStatus.NOT_FOUND, "Division Not Found!");
   }
+
+  let slug;
+  if (payload.name) {
+    slug = slugify(payload.name, { lower: true, trim: true });
+  }
+
   const updatedDivision = await Division.findByIdAndUpdate(
     divisionId,
-    payload,
+    { ...payload, slug },
     {
       runValidators: true,
       new: true,

@@ -45,6 +45,7 @@ const updateUserService = async (
   payload: Partial<IUser>,
   decodedToken: JwtPayload
 ) => {
+  console.log(userId, payload, decodedToken);
   if (decodedToken.role === Role.USER || decodedToken.role === Role.GUIDE) {
     if (userId !== decodedToken.userId) {
       throw new AppError(401, "You are not authorized");
@@ -83,7 +84,7 @@ const updateUserService = async (
   const newUpdatedUser = await User.findByIdAndUpdate(userId, payload, {
     new: true,
     runValidators: true,
-  });
+  }).select("-password");
 
   return newUpdatedUser;
 };

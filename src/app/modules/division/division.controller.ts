@@ -12,6 +12,7 @@ const createDivision = catchAsync(
       thumbnail: req.file?.path,
     };
     const divisionInfo = await divisionService.createDivisionService(payload);
+    console.log(divisionInfo);
 
     sendResponse(res, {
       statusCode: httpStatus.CREATED,
