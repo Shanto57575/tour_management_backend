@@ -8,7 +8,7 @@ const tourTypeSchema = new Schema<ITourType>(
   },
   {
     timestamps: true,
-  }
+  },
 );
 
 export const TourType = model<ITourType>("TourType", tourTypeSchema);
@@ -44,15 +44,8 @@ const tourSchema = new Schema<ITour>(
   },
   {
     timestamps: true,
-  }
+  },
 );
-
-tourSchema.pre("save", function (next) {
-  if (this.isModified("title")) {
-    this.slug = slugify(this.title, { lower: true, strict: true });
-  }
-  next();
-});
 
 tourSchema.pre("save", function (next) {
   if (this.isModified("title")) {

@@ -46,7 +46,7 @@ const credentialsLogin = catchAsync(
         },
       });
     })(req, res, next);
-  }
+  },
 );
 
 const getNewAccessToken = catchAsync(
@@ -58,7 +58,7 @@ const getNewAccessToken = catchAsync(
     }
 
     const tokenInfo = await AuthServices.getNewAccessTokenService(
-      refreshToken as string
+      refreshToken as string,
     );
 
     setAuthCookie(res, tokenInfo);
@@ -69,11 +69,11 @@ const getNewAccessToken = catchAsync(
       message: "New access token generated successfully",
       data: tokenInfo,
     });
-  }
+  },
 );
 
 const logout = catchAsync(
-  async (req: Request, res: Response, next: NextFunction) => {
+  async (_req: Request, res: Response, _next: NextFunction) => {
     res.clearCookie("accessToken", {
       httpOnly: true,
       secure: false,
@@ -92,7 +92,7 @@ const logout = catchAsync(
       message: "user logged out successfully",
       data: null,
     });
-  }
+  },
 );
 
 const changePassword = catchAsync(
@@ -104,7 +104,7 @@ const changePassword = catchAsync(
     await AuthServices.changePasswordService(
       oldPassword,
       newPassword,
-      decodedToken as JwtPayload
+      decodedToken as JwtPayload,
     );
 
     sendResponse(res, {
@@ -113,7 +113,7 @@ const changePassword = catchAsync(
       message: "password changed successfully",
       data: null,
     });
-  }
+  },
 );
 
 const resetPassword = catchAsync(
@@ -122,7 +122,7 @@ const resetPassword = catchAsync(
 
     await AuthServices.resetPasswordService(
       req.body,
-      decodedToken as JwtPayload
+      decodedToken as JwtPayload,
     );
 
     sendResponse(res, {
@@ -131,7 +131,7 @@ const resetPassword = catchAsync(
       message: "password changed successfully",
       data: null,
     });
-  }
+  },
 );
 
 const setPassword = catchAsync(
@@ -146,7 +146,7 @@ const setPassword = catchAsync(
       message: "password set successfully",
       data: null,
     });
-  }
+  },
 );
 
 const forgotPassword = catchAsync(
@@ -160,7 +160,7 @@ const forgotPassword = catchAsync(
       message: "Email sent successfully",
       data: null,
     });
-  }
+  },
 );
 
 const googleCallbackController = catchAsync(
@@ -182,7 +182,7 @@ const googleCallbackController = catchAsync(
     setAuthCookie(res, tokenInfo);
 
     res.redirect(`${envVars.FRONTEND_URL}/${redirectTo}`);
-  }
+  },
 );
 
 export const AuthControllers = {

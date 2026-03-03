@@ -9,7 +9,7 @@ const slugify_1 = __importDefault(require("slugify"));
 const divisionSchema = new mongoose_1.Schema({
     name: { type: String, required: true, unique: true },
     slug: { type: String, unique: true },
-    thumbnail: { type: String },
+    thumbnail: { type: String, required: true },
     description: { type: String },
 }, { timestamps: true });
 divisionSchema.pre("save", function (next) {

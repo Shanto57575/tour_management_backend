@@ -17,8 +17,8 @@ router.patch("/tour-types/:id", (0, validateRequest_1.validateRequest)(tour_vali
 router.delete("/tour-types/:id", (0, checkAuth_1.checkAuth)(user_interface_1.Role.ADMIN, user_interface_1.Role.SUPER_ADMIN), tour_controller_1.TourController.deleteTourType);
 // tour
 router.post("/create", (0, checkAuth_1.checkAuth)(user_interface_1.Role.ADMIN, user_interface_1.Role.SUPER_ADMIN), multer_config_1.multerUpload.array("files"), (0, validateRequest_1.validateRequest)(tour_validation_1.createTourZodSchema), tour_controller_1.TourController.createTour);
-router.get("/", (0, checkAuth_1.checkAuth)(...Object.values(user_interface_1.Role)), tour_controller_1.TourController.getAllTour);
-router.get("/:slug", (0, checkAuth_1.checkAuth)(...Object.values(user_interface_1.Role)), tour_controller_1.TourController.getSingleTour);
+router.get("/", tour_controller_1.TourController.getAllTour);
+router.get("/:slug", tour_controller_1.TourController.getSingleTour);
 router.patch("/:id", (0, checkAuth_1.checkAuth)(user_interface_1.Role.ADMIN, user_interface_1.Role.SUPER_ADMIN), multer_config_1.multerUpload.array("files"), (0, validateRequest_1.validateRequest)(tour_validation_1.updateTourZodSchema), tour_controller_1.TourController.updateTour);
 router.delete("/:id", (0, checkAuth_1.checkAuth)(user_interface_1.Role.ADMIN, user_interface_1.Role.SUPER_ADMIN), tour_controller_1.TourController.deleteTour);
 exports.TourRoutes = router;

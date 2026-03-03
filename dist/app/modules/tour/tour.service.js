@@ -71,7 +71,7 @@ const getAllTourService = (query) => __awaiter(void 0, void 0, void 0, function*
     };
 });
 const getSingleTourService = (slug) => __awaiter(void 0, void 0, void 0, function* () {
-    return yield tour_model_1.Tour.findOne({ slug });
+    return yield tour_model_1.Tour.findOne({ slug }).lean();
 });
 const updateTourService = (tourId, payload) => __awaiter(void 0, void 0, void 0, function* () {
     const isTourExist = yield tour_model_1.Tour.findById(tourId);

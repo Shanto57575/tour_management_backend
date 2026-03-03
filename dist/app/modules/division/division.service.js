@@ -19,15 +19,17 @@ const division_model_1 = require("./division.model");
 const queryBuilder_1 = require("../../utils/queryBuilder");
 const division_constant_1 = require("./division.constant");
 const cloudinary_config_1 = require("../../config/cloudinary.config");
+const slugify_1 = __importDefault(require("slugify"));
 const createDivisionService = (payload) => __awaiter(void 0, void 0, void 0, function* () {
     if (!payload.name) {
         throw new AppError_1.default(http_status_codes_1.default.BAD_REQUEST, "Name is required");
     }
+    const slug = (0, slugify_1.default)(payload.name, { lower: true, trim: true });
     const isDivisionExists = yield division_model_1.Division.findOne({ name: payload.name });
     if (isDivisionExists) {
         throw new AppError_1.default(http_status_codes_1.default.BAD_REQUEST, "division already exists");
     }
-    const division = yield division_model_1.Division.create(payload);
+    const division = yield division_model_1.Division.create(Object.assign(Object.assign({}, payload), { slug }));
     return division;
 });
 const getAllDivisionService = (query) => __awaiter(void 0, void 0, void 0, function* () {
@@ -55,7 +57,11 @@ const updateDivisionService = (divisionId, payload) => __awaiter(void 0, void 0,
     if (!existingDivision) {
         throw new AppError_1.default(http_status_codes_1.default.NOT_FOUND, "Division Not Found!");
     }
-    const updatedDivision = yield division_model_1.Division.findByIdAndUpdate(divisionId, payload, {
+    let slug;
+    if (payload.name) {
+        slug = (0, slugify_1.default)(payload.name, { lower: true, trim: true });
+    }
+    const updatedDivision = yield division_model_1.Division.findByIdAndUpdate(divisionId, Object.assign(Object.assign({}, payload), { slug }), {
         runValidators: true,
         new: true,
     });

@@ -23,28 +23,35 @@ cloudinary_1.v2.config({
     api_key: env_1.envVars.CLOUDINARY.CLOUDINARY_API_KEY,
     api_secret: env_1.envVars.CLOUDINARY.CLOUDINARY_API_SECRET,
 });
-const uploadBufferToCloudinary = (buffer, fileName) => __awaiter(void 0, void 0, void 0, function* () {
+const buildUniqueFileName = (originalName) => {
+    const cleaned = originalName
+        .toLowerCase()
+        .replace(/\s+/g, "-")
+        .replace(/\./g, "-")
+        .replace(/[^a-z0-9\-.]/g, "");
+    const unique = Math.random().toString(36).substring(2) + "-" + Date.now() + "-" + cleaned;
+    return unique;
+};
+const uploadBufferToCloudinary = (buffer, originalName) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         return new Promise((resolve, reject) => {
-            const public_id = `pdf/${fileName}-${Date.now()}`;
+            const fileName = buildUniqueFileName(originalName);
             const bufferStream = new stream_1.default.PassThrough();
             bufferStream.end(buffer);
             cloudinary_1.v2.uploader
                 .upload_stream({
                 resource_type: "auto",
-                public_id: public_id,
-                folder: "pdf",
+                folder: "uploads",
+                public_id: fileName,
             }, (error, result) => {
-                if (error) {
+                if (error)
                     return reject(error);
-                }
-                resolve(result);
+                resolve(result || undefined);
             })
                 .end(buffer);
         });
     }
     catch (error) {
-        console.log(error);
         throw new AppError_1.default(500, `Error uploading buffer to cloudinary ${error.message}`);
     }
 });
@@ -56,9 +63,8 @@ const deleteImageFromCloudinary = (url) => __awaiter(void 0, void 0, void 0, fun
         if (match && match[1]) {
             const public_id = match[1];
             yield cloudinary_1.v2.uploader.destroy(public_id);
-            console.log(`File ${public_id} is deleted from cloudinary`);
+            console.log(`File ${public_id} deleted from Cloudinary`);
         }
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
     }
     catch (error) {
         throw new AppError_1.default(401, "Cloudinary Image deletion failed!", error.message);

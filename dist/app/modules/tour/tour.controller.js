@@ -18,7 +18,7 @@ const http_status_codes_1 = __importDefault(require("http-status-codes"));
 const catchAsync_1 = require("../../utils/catchAsync");
 const sendResponse_1 = require("../../utils/sendResponse");
 const tour_service_1 = require("./tour.service");
-const createTourType = (0, catchAsync_1.catchAsync)((req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
+const createTourType = (0, catchAsync_1.catchAsync)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const tourTypeInfo = yield tour_service_1.TourService.createTourTypeService(req.body);
     (0, sendResponse_1.sendResponse)(res, {
         statusCode: http_status_codes_1.default.CREATED,
@@ -27,7 +27,7 @@ const createTourType = (0, catchAsync_1.catchAsync)((req, res, next) => __awaite
         data: tourTypeInfo,
     });
 }));
-const getAllTourTypes = (0, catchAsync_1.catchAsync)((req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
+const getAllTourTypes = (0, catchAsync_1.catchAsync)((_req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const tourTypeInfo = yield tour_service_1.TourService.getAllTourTypeService();
     (0, sendResponse_1.sendResponse)(res, {
         statusCode: http_status_codes_1.default.OK,
@@ -36,7 +36,7 @@ const getAllTourTypes = (0, catchAsync_1.catchAsync)((req, res, next) => __await
         data: tourTypeInfo,
     });
 }));
-const getSingleTourType = (0, catchAsync_1.catchAsync)((req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
+const getSingleTourType = (0, catchAsync_1.catchAsync)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const tourType = yield tour_service_1.TourService.getSingleTourTypeService(req.params.id);
     (0, sendResponse_1.sendResponse)(res, {
         statusCode: http_status_codes_1.default.OK,
@@ -45,7 +45,7 @@ const getSingleTourType = (0, catchAsync_1.catchAsync)((req, res, next) => __awa
         data: tourType,
     });
 }));
-const updateTourType = (0, catchAsync_1.catchAsync)((req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
+const updateTourType = (0, catchAsync_1.catchAsync)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const updatedTourTypeInfo = yield tour_service_1.TourService.updateTourTypeService(req.params.id, req.body);
     (0, sendResponse_1.sendResponse)(res, {
         statusCode: http_status_codes_1.default.OK,
@@ -54,7 +54,7 @@ const updateTourType = (0, catchAsync_1.catchAsync)((req, res, next) => __awaite
         data: updatedTourTypeInfo,
     });
 }));
-const deleteTourType = (0, catchAsync_1.catchAsync)((req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
+const deleteTourType = (0, catchAsync_1.catchAsync)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     yield tour_service_1.TourService.deleteTourTypeService(req.params.id);
     (0, sendResponse_1.sendResponse)(res, {
         statusCode: http_status_codes_1.default.OK,
@@ -63,7 +63,7 @@ const deleteTourType = (0, catchAsync_1.catchAsync)((req, res, next) => __awaite
         data: null,
     });
 }));
-const createTour = (0, catchAsync_1.catchAsync)((req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
+const createTour = (0, catchAsync_1.catchAsync)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const payload = Object.assign(Object.assign({}, req.body), { images: req.files.map((file) => file.path) });
     const tourInfo = yield tour_service_1.TourService.createTourService(payload);
     (0, sendResponse_1.sendResponse)(res, {
@@ -73,7 +73,7 @@ const createTour = (0, catchAsync_1.catchAsync)((req, res, next) => __awaiter(vo
         data: tourInfo,
     });
 }));
-const getAllTour = (0, catchAsync_1.catchAsync)((req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
+const getAllTour = (0, catchAsync_1.catchAsync)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const query = req.query;
     const allTourInfo = yield tour_service_1.TourService.getAllTourService(query);
     (0, sendResponse_1.sendResponse)(res, {
@@ -83,7 +83,7 @@ const getAllTour = (0, catchAsync_1.catchAsync)((req, res, next) => __awaiter(vo
         data: allTourInfo,
     });
 }));
-const getSingleTour = (0, catchAsync_1.catchAsync)((req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
+const getSingleTour = (0, catchAsync_1.catchAsync)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const tour = yield tour_service_1.TourService.getSingleTourService(req.params.slug);
     (0, sendResponse_1.sendResponse)(res, {
         statusCode: http_status_codes_1.default.OK,
@@ -92,7 +92,7 @@ const getSingleTour = (0, catchAsync_1.catchAsync)((req, res, next) => __awaiter
         data: tour,
     });
 }));
-const updateTour = (0, catchAsync_1.catchAsync)((req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
+const updateTour = (0, catchAsync_1.catchAsync)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     var _a;
     const payload = Object.assign(Object.assign({}, req.body), { images: (_a = req.files) === null || _a === void 0 ? void 0 : _a.map((file) => file.path) });
     const updatedTour = yield tour_service_1.TourService.updateTourService(req.params.id, payload);
@@ -103,7 +103,7 @@ const updateTour = (0, catchAsync_1.catchAsync)((req, res, next) => __awaiter(vo
         data: updatedTour,
     });
 }));
-const deleteTour = (0, catchAsync_1.catchAsync)((req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
+const deleteTour = (0, catchAsync_1.catchAsync)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     yield tour_service_1.TourService.deleteTourService(req.params.id);
     (0, sendResponse_1.sendResponse)(res, {
         statusCode: http_status_codes_1.default.OK,
@@ -112,7 +112,6 @@ const deleteTour = (0, catchAsync_1.catchAsync)((req, res, next) => __awaiter(vo
         data: null,
     });
 }));
-// Tour
 exports.TourController = {
     // Tour Type
     createTourType,

@@ -21,6 +21,7 @@ const createDivision = (0, catchAsync_1.catchAsync)((req, res, next) => __awaite
     var _a;
     const payload = Object.assign(Object.assign({}, req.body), { thumbnail: (_a = req.file) === null || _a === void 0 ? void 0 : _a.path });
     const divisionInfo = yield division_service_1.divisionService.createDivisionService(payload);
+    console.log(divisionInfo);
     (0, sendResponse_1.sendResponse)(res, {
         statusCode: http_status_codes_1.default.CREATED,
         success: true,

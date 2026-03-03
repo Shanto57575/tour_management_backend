@@ -4,28 +4,12 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.multerUpload = void 0;
-const multer_storage_cloudinary_1 = require("multer-storage-cloudinary");
-const cloudinary_config_1 = require("./cloudinary.config");
 const multer_1 = __importDefault(require("multer"));
-// import { v4 as uuidv4 } from "uuid";
-const storage = new multer_storage_cloudinary_1.CloudinaryStorage({
-    cloudinary: cloudinary_config_1.cloudinaryUpload,
-    params: {
-        public_id: (req, file) => {
-            const fileName = file.originalname
-                .toLowerCase()
-                .replace(/\s+/g, "-") // for space removing
-                .replace(/\./g, "-") // for dot removing
-                // eslint-disable-next-line no-useless-escape
-                .replace(/[^a-z0-9\-\.]/g, "");
-            //   const uniqueFileName = `${uuidv4()}.${extension}`;
-            const uniqueFileName = Math.random().toString(36).substring(2) +
-                "-" +
-                Date.now() +
-                "-" +
-                fileName;
-            return uniqueFileName;
-        },
-    },
+const storage = multer_1.default.memoryStorage();
+const fileFilter = (_req, file, cb) => {
+    cb(null, true);
+};
+exports.multerUpload = (0, multer_1.default)({
+    storage,
+    fileFilter,
 });
-exports.multerUpload = (0, multer_1.default)({ storage: storage });

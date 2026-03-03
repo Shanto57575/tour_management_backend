@@ -48,12 +48,6 @@ tourSchema.pre("save", function (next) {
     }
     next();
 });
-tourSchema.pre("save", function (next) {
-    if (this.isModified("title")) {
-        this.slug = (0, slugify_1.default)(this.title, { lower: true, strict: true });
-    }
-    next();
-});
 tourSchema.pre("findOneAndUpdate", function (next) {
     const tour = this.getUpdate();
     if (tour.title) {

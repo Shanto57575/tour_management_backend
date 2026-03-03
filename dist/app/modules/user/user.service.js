@@ -49,6 +49,7 @@ const createUserService = (payload) => __awaiter(void 0, void 0, void 0, functio
     return remainingData;
 });
 const updateUserService = (userId, payload, decodedToken) => __awaiter(void 0, void 0, void 0, function* () {
+    console.log(userId, payload, decodedToken);
     if (decodedToken.role === user_interface_1.Role.USER || decodedToken.role === user_interface_1.Role.GUIDE) {
         if (userId !== decodedToken.userId) {
             throw new AppError_1.default(401, "You are not authorized");
@@ -78,7 +79,7 @@ const updateUserService = (userId, payload, decodedToken) => __awaiter(void 0, v
     const newUpdatedUser = yield user_model_1.User.findByIdAndUpdate(userId, payload, {
         new: true,
         runValidators: true,
-    });
+    }).select("-password");
     return newUpdatedUser;
 });
 const getAllUsersServices = (query) => __awaiter(void 0, void 0, void 0, function* () {
