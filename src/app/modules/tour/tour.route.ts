@@ -18,32 +18,28 @@ router.post(
   "/create-tour-type",
   checkAuth(Role.ADMIN, Role.SUPER_ADMIN),
   validateRequest(createTourTypeZodSchema),
-  TourController.createTourType
+  TourController.createTourType,
 );
 
-router.get(
-  "/tour-types",
-  checkAuth(Role.ADMIN, Role.SUPER_ADMIN),
-  TourController.getAllTourTypes
-);
+router.get("/tour-types", TourController.getAllTourTypes);
 
 router.get(
   "/tour-types/:id",
   checkAuth(...Object.values(Role)),
-  TourController.getSingleTourType
+  TourController.getSingleTourType,
 );
 
 router.patch(
   "/tour-types/:id",
   validateRequest(updateTourTypeZodSchema),
   checkAuth(Role.ADMIN, Role.SUPER_ADMIN),
-  TourController.updateTourType
+  TourController.updateTourType,
 );
 
 router.delete(
   "/tour-types/:id",
   checkAuth(Role.ADMIN, Role.SUPER_ADMIN),
-  TourController.deleteTourType
+  TourController.deleteTourType,
 );
 
 // tour
@@ -52,7 +48,7 @@ router.post(
   checkAuth(Role.ADMIN, Role.SUPER_ADMIN),
   multerUpload.array("files"),
   validateRequest(createTourZodSchema),
-  TourController.createTour
+  TourController.createTour,
 );
 
 router.get("/", TourController.getAllTour);
@@ -64,13 +60,13 @@ router.patch(
   checkAuth(Role.ADMIN, Role.SUPER_ADMIN),
   multerUpload.array("files"),
   validateRequest(updateTourZodSchema),
-  TourController.updateTour
+  TourController.updateTour,
 );
 
 router.delete(
   "/:id",
   checkAuth(Role.ADMIN, Role.SUPER_ADMIN),
-  TourController.deleteTour
+  TourController.deleteTour,
 );
 
 export const TourRoutes = router;
