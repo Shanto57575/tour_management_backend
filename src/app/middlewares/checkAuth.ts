@@ -18,7 +18,7 @@ export const checkAuth =
 
     const verifiedToken = verifyToken(
       accessToken,
-      envVars.JWT_ACCESS_SECRET
+      envVars.JWT_ACCESS_SECRET,
     ) as JwtPayload;
 
     const isUserExists = await User.findOne({
@@ -32,7 +32,7 @@ export const checkAuth =
     if (isUserExists.isActive == IsActive.BLOCKED) {
       throw new AppError(
         httpStatus.BAD_REQUEST,
-        `user is Blocked ${isUserExists.isActive}`
+        `user is Blocked ${isUserExists.isActive}`,
       );
     }
 
