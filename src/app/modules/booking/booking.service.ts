@@ -6,8 +6,7 @@ import httpStatus from "http-status-codes";
 import { Booking } from "./booking.model";
 import { Tour } from "../tour/tour.model";
 import { Payment } from "../payment/payment.model";
-import { ISSLCommerz } from "../sslCommerz/sslCommerz.interface";
-import { SSLService } from "../sslCommerz/sslCommerz.service";
+import { StripeService } from "../stripe/stripe.service";
 import { QueryBuilder } from "../../utils/queryBuilder";
 import { JwtPayload } from "jsonwebtoken";
 import { getTransactionId } from "../../utils/transactionId";
@@ -71,28 +70,26 @@ const createBookingService = async (
       .populate("tour", "title costFrom")
       .populate("payment");
 
-    const userAddress = (updatedBooking?.user as any).address;
-    const userEmail = (updatedBooking?.user as any).email;
-    const userPhoneNumber = (updatedBooking?.user as any).phone;
-    const userName = (updatedBooking?.user as any).name;
-
-    const sslPayload: ISSLCommerz = {
-      address: userAddress,
-      email: userEmail,
-      phoneNumber: userPhoneNumber,
-      name: userName,
+    // Create Stripe PaymentIntent — card data never touches our server
+    const stripeResult = await StripeService.createPaymentIntent({
       amount,
+      bookingId: String(booking[0]._id),
+      userId,
       transactionId,
-    };
+    });
 
-    const sslPayment = await SSLService.sslPaymentInit(sslPayload);
+    // Store paymentIntentId for webhook correlation
+    await Payment.findByIdAndUpdate(
+      payment[0]._id,
+      { paymentGatewayData: { paymentIntentId: stripeResult.paymentIntentId } },
+      { runValidators: true, session },
+    );
 
     await session.commitTransaction();
     session.endSession();
-    console.log("sslPayment==>", sslPayment);
 
     return {
-      paymentUrl: sslPayment.GatewayPageURL,
+      clientSecret: stripeResult.clientSecret,
       booking: updatedBooking,
     };
   } catch (error) {
@@ -233,10 +230,53 @@ const getAllBookingsService = async (query: Record<string, string>) => {
   };
 };
 
+/**
+ * Re-initiates a Stripe PaymentIntent for an existing PENDING/UNPAID booking.
+ * Used by the "Pay Now" button in My Bookings when the user didn't complete checkout.
+ */
+const reInitPaymentService = async (bookingId: string, userId: string) => {
+  const booking = await Booking.findById(bookingId)
+    .populate("tour", "title costFrom images location startDate endDate")
+    .populate("payment", "amount transactionId status");
+
+  if (!booking) {
+    throw new AppError(httpStatus.NOT_FOUND, "Booking not found");
+  }
+
+  if (String(booking.user) !== userId) {
+    throw new AppError(httpStatus.FORBIDDEN, "Access denied");
+  }
+
+  const payment = booking.payment as any;
+
+  if (!payment || payment.status === PAYMENT_STATUS.PAID) {
+    throw new AppError(httpStatus.BAD_REQUEST, "This booking is already paid");
+  }
+
+  // Create a fresh PaymentIntent for the same amount
+  const stripeResult = await StripeService.createPaymentIntent({
+    amount: payment.amount,
+    bookingId,
+    userId,
+    transactionId: payment.transactionId,
+  });
+
+  // Update stored paymentIntentId
+  await Payment.findByIdAndUpdate(payment._id, {
+    paymentGatewayData: { paymentIntentId: stripeResult.paymentIntentId },
+  });
+
+  return {
+    clientSecret: stripeResult.clientSecret,
+    booking,
+  };
+};
+
 export const BookingService = {
   createBookingService,
   updateBookingsStatusService,
   getBookingByIdService,
   getUserBookingsService,
   getAllBookingsService,
+  reInitPaymentService,
 };
