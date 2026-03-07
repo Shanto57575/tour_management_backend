@@ -46,12 +46,8 @@ const changePasswordService = async (
 const resetPasswordService = async (
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   payload: Record<string, any>,
-  decodedToken: JwtPayload,
 ) => {
-  if (payload.id !== decodedToken.userId) {
-    throw new AppError(401, "You Cannot reset your password!");
-  }
-  const isUserExits = await User.findById(decodedToken.userId);
+  const isUserExits = await User.findById(payload.id);
   if (!isUserExits) {
     throw new AppError(401, "User does not exists");
   }
