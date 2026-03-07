@@ -5,66 +5,73 @@ import { generatePdf, IInvoiceData } from "../../utils/invoice";
 import { sendEmail } from "../../utils/sendEmail";
 import { BOOKING_STATUS } from "../booking/booking.interface";
 import { Booking } from "../booking/booking.model";
-import { ISSLCommerz } from "../sslCommerz/sslCommerz.interface";
-import { SSLService } from "../sslCommerz/sslCommerz.service";
 import { ITour } from "../tour/tour.interface";
 import { IUser } from "../user/user.interface";
 import { PAYMENT_STATUS } from "./payment.interface";
 import { Payment } from "./payment.model";
 import httpStatus from "http-status-codes";
+import Stripe from "stripe";
 
-const initPaymentService = async (bookingId: string) => {
-  const payment = await Payment.findOne({ booking: bookingId });
+/**
+ * Handles a successful Stripe payment.
+ * Triggered by `payment_intent.succeeded` webhook event.
+ * Idempotent — bails early if payment is already marked PAID.
+ */
+const handlePaymentSuccess = async (
+  paymentIntent: Stripe.PaymentIntent,
+): Promise<void> => {
+  const { bookingId, transactionId } = paymentIntent.metadata;
 
-  if (!payment) {
+  if (!bookingId || !transactionId) {
     throw new AppError(
-      httpStatus.NOT_FOUND,
-      "Payment Not Found! you didn't booked this tour"
+      httpStatus.BAD_REQUEST,
+      "Missing metadata on PaymentIntent",
     );
   }
 
-  const booking = await Booking.findById(payment.booking);
-
-  const userAddress = (booking?.user as any).address;
-  const userEmail = (booking?.user as any).email;
-  const userPhoneNumber = (booking?.user as any).phone;
-  const userName = (booking?.user as any).name;
-
-  const sslPayload: ISSLCommerz = {
-    address: userAddress,
-    email: userEmail,
-    phoneNumber: userPhoneNumber,
-    name: userName,
-    amount: payment.amount,
-    transactionId: payment.transactionId,
-  };
-
-  const sslPayment = await SSLService.sslPaymentInit(sslPayload);
-
-  return {
-    paymentUrl: sslPayment.GatewayPageURL,
-  };
-};
-
-const successPayment = async (query: Record<string, string>) => {
   const session = await Booking.startSession();
   session.startTransaction();
 
   try {
-    const updatedPayment = await Payment.findOneAndUpdate(
-      { transactionId: query.transactionId },
-      { status: PAYMENT_STATUS.PAID },
-      { new: true, runValidators: true, session }
-    );
+    // Idempotency guard — skip if already processed
+    const existingPayment = await Payment.findOne({
+      transactionId,
+    }).session(session);
 
-    if (!updatedPayment) {
+    if (!existingPayment) {
       throw new AppError(httpStatus.NOT_FOUND, "Payment Not Found");
     }
 
+    if (existingPayment.status === PAYMENT_STATUS.PAID) {
+      await session.abortTransaction();
+      session.endSession();
+      return; // Already processed — idempotent exit
+    }
+
+    // Update payment status
+    const updatedPayment = await Payment.findByIdAndUpdate(
+      existingPayment._id,
+      {
+        status: PAYMENT_STATUS.PAID,
+        paymentGatewayData: {
+          paymentIntentId: paymentIntent.id,
+          amount: paymentIntent.amount,
+          currency: paymentIntent.currency,
+          status: paymentIntent.status,
+        },
+      },
+      { new: true, runValidators: true, session },
+    );
+
+    if (!updatedPayment) {
+      throw new AppError(httpStatus.NOT_FOUND, "Payment update failed");
+    }
+
+    // Update booking status
     const updatedBooking = await Booking.findByIdAndUpdate(
-      updatedPayment?.booking,
+      bookingId,
       { status: BOOKING_STATUS.COMPLETE },
-      { new: true, runValidators: true, session }
+      { new: true, runValidators: true, session },
     )
       .populate("tour", "title")
       .populate("user", "name email");
@@ -73,7 +80,7 @@ const successPayment = async (query: Record<string, string>) => {
       throw new AppError(httpStatus.NOT_FOUND, "Booking Not Found");
     }
 
-    // start pdf
+    // Generate Invoice PDF
     const invoiceData: IInvoiceData = {
       bookingDate: updatedBooking.createdAt as Date,
       guestCount: updatedBooking.guestCount,
@@ -86,21 +93,23 @@ const successPayment = async (query: Record<string, string>) => {
     const pdfBuffer = await generatePdf(invoiceData);
     const cloudinaryResult = await uploadBufferToCloudinary(
       pdfBuffer,
-      "invoice"
+      "invoice",
     );
 
     if (!cloudinaryResult) {
-      throw new AppError(500, "Error uploading pdf");
+      throw new AppError(
+        httpStatus.INTERNAL_SERVER_ERROR,
+        "Error uploading pdf",
+      );
     }
 
     await Payment.findByIdAndUpdate(
       updatedPayment._id,
-      {
-        invoiceUrl: cloudinaryResult.secure_url,
-      },
-      { runValidators: true, session }
+      { invoiceUrl: cloudinaryResult.secure_url },
+      { runValidators: true, session },
     );
 
+    // Send confirmation email
     await sendEmail({
       to: (updatedBooking.user as unknown as IUser).email,
       subject: "Your Booking Invoice",
@@ -117,8 +126,6 @@ const successPayment = async (query: Record<string, string>) => {
 
     await session.commitTransaction();
     session.endSession();
-
-    return { success: true, message: "Payment completed successfully" };
   } catch (error) {
     await session.abortTransaction();
     session.endSession();
@@ -126,57 +133,41 @@ const successPayment = async (query: Record<string, string>) => {
   }
 };
 
-const failPayment = async (query: Record<string, string>) => {
+/**
+ * Handles a failed Stripe payment.
+ * Triggered by `payment_intent.payment_failed` webhook event.
+ */
+const handlePaymentFailed = async (
+  paymentIntent: Stripe.PaymentIntent,
+): Promise<void> => {
+  const { bookingId, transactionId } = paymentIntent.metadata;
+
+  if (!bookingId || !transactionId) return;
+
   const session = await Booking.startSession();
   session.startTransaction();
+
   try {
-    const updatedPayment = await Payment.findOneAndUpdate(
+    await Payment.findOneAndUpdate(
+      { transactionId },
       {
-        transactionId: query.transactionId,
+        status: PAYMENT_STATUS.FAILED,
+        paymentGatewayData: {
+          paymentIntentId: paymentIntent.id,
+          status: paymentIntent.status,
+        },
       },
-      { status: PAYMENT_STATUS.FAILED },
-      { new: true, runValidators: true, session }
+      { runValidators: true, session },
     );
 
     await Booking.findByIdAndUpdate(
-      updatedPayment?.booking,
-      {
-        status: BOOKING_STATUS.FAILED,
-      },
-      { runValidators: true, session }
-    );
-    await session.commitTransaction();
-    session.endSession();
-    return { success: false, message: "Payment Failed" };
-  } catch (error) {
-    await session.abortTransaction();
-    session.endSession();
-    throw error;
-  }
-};
-
-const cancelPayment = async (query: Record<string, string>) => {
-  const session = await Booking.startSession();
-  session.startTransaction();
-  try {
-    const updatedPayment = await Payment.findOneAndUpdate(
-      { transactionId: query.transactionId },
-      {
-        status: PAYMENT_STATUS.CANCELLED,
-      },
-      { runValidators: true, session }
+      bookingId,
+      { status: BOOKING_STATUS.FAILED },
+      { runValidators: true, session },
     );
 
-    await Booking.findByIdAndUpdate(
-      updatedPayment?.booking,
-      {
-        status: BOOKING_STATUS.CANCEL,
-      },
-      { runValidators: true, session }
-    );
     await session.commitTransaction();
     session.endSession();
-    return { success: false, message: "Payment Cancelled" };
   } catch (error) {
     await session.abortTransaction();
     session.endSession();
@@ -199,9 +190,7 @@ const getInvoiceDownloadUrlService = async (paymentId: string) => {
 };
 
 export const PaymentService = {
-  initPaymentService,
-  successPayment,
-  failPayment,
-  cancelPayment,
+  handlePaymentSuccess,
+  handlePaymentFailed,
   getInvoiceDownloadUrlService,
 };

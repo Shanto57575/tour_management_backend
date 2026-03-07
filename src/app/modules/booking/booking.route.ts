@@ -14,32 +14,43 @@ router.post(
   "/create-booking",
   checkAuth(...Object.values(Role)),
   validateRequest(createBookingZodSchema),
-  BookingController.createBooking
+  BookingController.createBooking,
 );
 
 router.get(
   "/all-bookings",
   checkAuth(Role.ADMIN, Role.SUPER_ADMIN),
-  BookingController.getAllBookings
+  BookingController.getAllBookings,
 );
 
 router.get(
   "/my-bookings",
   checkAuth(...Object.values(Role)),
-  BookingController.getUserBookings
+  BookingController.getUserBookings,
 );
 
 router.get(
   "/:bookingId",
   checkAuth(...Object.values(Role)),
-  BookingController.getSingleBooking
+  BookingController.getSingleBooking,
 );
 
 router.patch(
   "/:bookingId",
   checkAuth(...Object.values(Role)),
   validateRequest(updateBookingStatusZodSchema),
-  BookingController.updateBookingStatus
+  BookingController.updateBookingStatus,
+);
+
+/**
+ * POST /api/v1/booking/re-init-payment/:bookingId
+ * Creates a new Stripe PaymentIntent for an existing PENDING/UNPAID booking.
+ * Returns clientSecret so the frontend can open the Stripe checkout modal.
+ */
+router.post(
+  "/re-init-payment/:bookingId",
+  checkAuth(...Object.values(Role)),
+  BookingController.reInitPayment,
 );
 
 export const BookingRoutes = router;

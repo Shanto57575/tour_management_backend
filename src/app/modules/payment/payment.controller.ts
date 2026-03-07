@@ -2,66 +2,55 @@
 import { NextFunction, Request, Response } from "express";
 import { catchAsync } from "../../utils/catchAsync";
 import { PaymentService } from "./payment.service";
-import { envVars } from "../../config/env";
 import { sendResponse } from "../../utils/sendResponse";
-import { SSLService } from "../sslCommerz/sslCommerz.service";
+import { stripe } from "../stripe/stripe.config";
+import { envVars } from "../../config/env";
+import Stripe from "stripe";
 
-const initPayment = catchAsync(
-  async (req: Request, res: Response, next: NextFunction) => {
-    const bookingId = req.params.bookingId;
+const stripeWebhook = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
+  const sig = req.headers["stripe-signature"] as string;
 
-    const result = await PaymentService.initPaymentService(bookingId);
+  let event: Stripe.Event;
 
-    sendResponse(res, {
-      statusCode: 200,
-      success: true,
-      message: "Payment done Successfully",
-      data: result,
-    });
-  }
-);
-
-const successPayment = catchAsync(
-  async (req: Request, res: Response, next: NextFunction) => {
-    const query = req.query;
-    const result = await PaymentService.successPayment(
-      query as Record<string, string>
+  try {
+    event = stripe.webhooks.constructEvent(
+      req.body,
+      sig,
+      envVars.STRIPE.STRIPE_WEBHOOK_SECRET,
     );
-    if (result.success) {
-      res.redirect(
-        `${envVars.SSL.SSL_SUCCESS_FRONTEND_URL}?transactionId=${query.transactionId}&message=${result.message}&amount=${query.amount}&status=${query.status}`
-      );
-    }
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Webhook error";
+    res
+      .status(400)
+      .json({ message: `Webhook signature verification failed: ${message}` });
+    return;
   }
-);
 
-const failPayment = catchAsync(
-  async (req: Request, res: Response, next: NextFunction) => {
-    const query = req.query;
-    const result = await PaymentService.failPayment(
-      query as Record<string, string>
-    );
-    if (!result.success) {
-      res.redirect(
-        `${envVars.SSL.SSL_FAIL_FRONTEND_URL}?transactionId=${query.transactionId}&message=${result.message}&amount=${query.amount}&status=${query.status}`
-      );
+  try {
+    switch (event.type) {
+      case "payment_intent.succeeded": {
+        const paymentIntent = event.data.object as Stripe.PaymentIntent;
+        await PaymentService.handlePaymentSuccess(paymentIntent);
+        break;
+      }
+      case "payment_intent.payment_failed": {
+        const paymentIntent = event.data.object as Stripe.PaymentIntent;
+        await PaymentService.handlePaymentFailed(paymentIntent);
+        break;
+      }
+      default:
+        console.log(`Unhandled Stripe event type: ${event.type}`);
     }
-  }
-);
 
-const cancelPayment = catchAsync(
-  async (req: Request, res: Response, next: NextFunction) => {
-    const query = req.query;
-    const result = await PaymentService.cancelPayment(
-      query as Record<string, string>
-    );
-    if (!result.success) {
-      res.redirect(
-        `${envVars.SSL.SSL_CANCEL_FRONTEND_URL}?transactionId=${query.transactionId}&message=${result.message}&amount=${query.amount}&status=${query.status}`
-      );
-    }
+    res.status(200).json({ received: true });
+  } catch (error) {
+    next(error);
   }
-);
+};
 
 const getInvoiceDownloadUrl = catchAsync(
   async (req: Request, res: Response) => {
@@ -74,26 +63,10 @@ const getInvoiceDownloadUrl = catchAsync(
       message: "Invoice download URL retrieved Successfully",
       data: result,
     });
-  }
+  },
 );
 
-const validatePayment = catchAsync(async (req: Request, res: Response) => {
-  console.log(`SSL COMMERZ IPN URL BODY==>${req.body}`);
-  await SSLService.validatePayment(req.body);
-
-  sendResponse(res, {
-    statusCode: 200,
-    success: true,
-    message: "payment validated Successfully",
-    data: null,
-  });
-});
-
 export const paymentController = {
-  initPayment,
-  successPayment,
-  failPayment,
-  cancelPayment,
+  stripeWebhook,
   getInvoiceDownloadUrl,
-  validatePayment,
 };

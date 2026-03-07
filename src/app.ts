@@ -8,6 +8,7 @@ import { envVars } from "./app/config/env";
 import expressSession from "express-session";
 import notFound from "./app/middlewares/notFound";
 import { globalErrorHandler } from "./app/middlewares/globalErrorHandler";
+import { paymentController } from "./app/modules/payment/payment.controller";
 
 const app = express();
 
@@ -16,20 +17,28 @@ app.use(
     secret: envVars.EXPRESS_SESSION_SECRET,
     resave: false,
     saveUninitialized: false,
-  })
+  }),
 );
 
 app.use(passport.initialize());
 app.use(passport.session());
 app.use(cookieParser());
 app.use(express.urlencoded({ extended: true }));
+
+const stripeWebhookMiddleware = [
+  express.raw({ type: "application/json" }),
+  paymentController.stripeWebhook,
+];
+app.post("/api/v1/payment/webhook", ...stripeWebhookMiddleware);
+app.post("/api/v1/payments/webhook", ...stripeWebhookMiddleware);
+
 app.use(express.json());
 app.set("trust proxy", 1);
 app.use(
   cors({
     origin: envVars.FRONTEND_URL,
     credentials: true,
-  })
+  }),
 );
 
 app.use("/api/v1", router);
