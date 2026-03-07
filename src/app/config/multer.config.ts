@@ -4,8 +4,8 @@ const storage = multer.memoryStorage();
 
 const fileFilter = (
   _req: Express.Request,
-  file: Express.Multer.File,
-  cb: multer.FileFilterCallback
+  _file: Express.Multer.File,
+  cb: multer.FileFilterCallback,
 ) => {
   cb(null, true);
 };

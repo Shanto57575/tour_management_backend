@@ -13,8 +13,6 @@ import passport from "passport";
 
 const credentialsLogin = catchAsync(
   async (req: Request, res: Response, next: NextFunction) => {
-    // const loginInfo = await AuthServices.credentialsLoginService(req.body);
-
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     passport.authenticate("local", async (err: any, user: any, info: any) => {
       if (err) {
@@ -117,25 +115,20 @@ const changePassword = catchAsync(
 );
 
 const resetPassword = catchAsync(
-  async (req: Request, res: Response, next: NextFunction) => {
-    const decodedToken = req.user;
-
-    await AuthServices.resetPasswordService(
-      req.body,
-      decodedToken as JwtPayload,
-    );
+  async (req: Request, res: Response, _next: NextFunction) => {
+    await AuthServices.resetPasswordService(req.body);
 
     sendResponse(res, {
       success: true,
       statusCode: httpStatus.OK,
-      message: "password changed successfully",
+      message: "password reset successfully",
       data: null,
     });
   },
 );
 
 const setPassword = catchAsync(
-  async (req: Request, res: Response, next: NextFunction) => {
+  async (req: Request, res: Response, _next: NextFunction) => {
     const decodedToken = req.user as JwtPayload;
     const { password } = req.body;
     await AuthServices.setPasswordService(decodedToken.userId, password);
@@ -150,7 +143,7 @@ const setPassword = catchAsync(
 );
 
 const forgotPassword = catchAsync(
-  async (req: Request, res: Response, next: NextFunction) => {
+  async (req: Request, res: Response, _next: NextFunction) => {
     const { email } = req.body;
     await AuthServices.forgotPasswordService(email);
 
@@ -164,7 +157,7 @@ const forgotPassword = catchAsync(
 );
 
 const googleCallbackController = catchAsync(
-  async (req: Request, res: Response, next: NextFunction) => {
+  async (req: Request, res: Response, _next: NextFunction) => {
     let redirectTo = req.query.state ? (req.query.state as string) : "";
 
     if (redirectTo.startsWith("/")) {

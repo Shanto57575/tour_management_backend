@@ -13,18 +13,14 @@ router.post("/logout", AuthControllers.logout);
 router.post(
   "/change-password",
   checkAuth(...Object.values(Role)),
-  AuthControllers.changePassword
+  AuthControllers.changePassword,
 );
 router.post(
   "/set-password",
   checkAuth(...Object.values(Role)),
-  AuthControllers.setPassword
+  AuthControllers.setPassword,
 );
-router.post(
-  "/reset-password",
-  checkAuth(...Object.values(Role)),
-  AuthControllers.resetPassword
-);
+router.post("/reset-password", AuthControllers.resetPassword);
 router.post("/forgot-password", AuthControllers.forgotPassword);
 
 router.get(
@@ -35,7 +31,7 @@ router.get(
       scope: ["profile", "email"],
       state: redirect as string,
     })(req, res, next);
-  }
+  },
 );
 
 router.get(
@@ -43,7 +39,7 @@ router.get(
   passport.authenticate("google", {
     failureRedirect: `${envVars.FRONTEND_URL}/login?error=There is some issues with your account.Please contact our support team!`,
   }),
-  AuthControllers.googleCallbackController
+  AuthControllers.googleCallbackController,
 );
 
 export const AuthRoutes = router;

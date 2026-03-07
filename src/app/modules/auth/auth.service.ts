@@ -10,39 +10,9 @@ import { IAuthProvider, IsActive } from "../user/user.interface";
 import jwt from "jsonwebtoken";
 import { sendEmail } from "../../utils/sendEmail";
 
-// const credentialsLoginService = async (payload: Partial<IUser>) => {
-//   const { email, password } = await payload;
-//   const isUserExists = await User.findOne({ email });
-
-//   if (!isUserExists) {
-//     throw new AppError(httpStatus.BAD_REQUEST, "user does not exist");
-//   }
-
-//   const isPasswordMatched = await bcryptjs.compare(
-//     password as string,
-//     isUserExists.password as string
-//   );
-
-//   if (!isPasswordMatched) {
-//     throw new AppError(httpStatus.BAD_REQUEST, "Invalid credentials");
-//   }
-
-//   const userTokens = createUserTokens(isUserExists);
-
-//   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-//   const { password: pass, ...rest } = isUserExists.toObject();
-
-//   return {
-//     accessToken: userTokens.accessToken,
-//     refreshToken: userTokens.refreshToken,
-//     user: rest,
-//   };
-// };
-
 const getNewAccessTokenService = async (refreshToken: string) => {
-  const newAccessToken = await createNewAccessTokenWithRefreshToken(
-    refreshToken
-  );
+  const newAccessToken =
+    await createNewAccessTokenWithRefreshToken(refreshToken);
 
   return {
     accessToken: newAccessToken,
@@ -52,13 +22,13 @@ const getNewAccessTokenService = async (refreshToken: string) => {
 const changePasswordService = async (
   oldPassword: string,
   newPassword: string,
-  decodedToken: JwtPayload
+  decodedToken: JwtPayload,
 ) => {
   const user = await User.findById(decodedToken.userId);
 
   const isOldPasswordMatch = await bcryptjs.compare(
     oldPassword,
-    user?.password as string
+    user?.password as string,
   );
 
   if (!isOldPasswordMatch) {
@@ -67,7 +37,7 @@ const changePasswordService = async (
 
   user!.password = await bcryptjs.hash(
     newPassword,
-    Number(envVars.BCRYPT_SALT_ROUND)
+    Number(envVars.BCRYPT_SALT_ROUND),
   );
 
   user!.save();
@@ -76,19 +46,15 @@ const changePasswordService = async (
 const resetPasswordService = async (
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   payload: Record<string, any>,
-  decodedToken: JwtPayload
 ) => {
-  if (payload.id !== decodedToken.userId) {
-    throw new AppError(401, "You Cannot reset your password!");
-  }
-  const isUserExits = await User.findById(decodedToken.userId);
+  const isUserExits = await User.findById(payload.id);
   if (!isUserExits) {
     throw new AppError(401, "User does not exists");
   }
 
   const hashedPassword = await bcryptjs.hash(
     payload.password,
-    Number(envVars.BCRYPT_SALT_ROUND)
+    Number(envVars.BCRYPT_SALT_ROUND),
   );
 
   isUserExits.password = hashedPassword;
@@ -108,13 +74,13 @@ const setPasswordService = async (userId: string, plainPassword: string) => {
   ) {
     throw new AppError(
       httpStatus.BAD_REQUEST,
-      "You have already set your password.Now you can change the password from your profile password update!"
+      "You have already set your password.Now you can change the password from your profile password update!",
     );
   }
 
   const hashedPassword = await bcryptjs.hash(
     plainPassword,
-    Number(envVars.BCRYPT_SALT_ROUND)
+    Number(envVars.BCRYPT_SALT_ROUND),
   );
 
   const credentialProvider: IAuthProvider = {
@@ -139,7 +105,7 @@ const forgotPasswordService = async (email: string) => {
   if (isUserExists.isActive == IsActive.BLOCKED) {
     throw new AppError(
       httpStatus.BAD_REQUEST,
-      `user is Blocked ${isUserExists.isActive}`
+      `user is Blocked ${isUserExists.isActive}`,
     );
   }
 
@@ -174,7 +140,6 @@ const forgotPasswordService = async (email: string) => {
 };
 
 export const AuthServices = {
-  // credentialsLoginService,
   getNewAccessTokenService,
   changePasswordService,
   resetPasswordService,
