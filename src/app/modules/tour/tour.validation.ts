@@ -42,6 +42,10 @@ export const createTourZodSchema = z.object({
 
   costFrom: z.number({ invalid_type_error: "cost must be Number" }).optional(),
 
+  discount: z
+    .number({ invalid_type_error: "discount must be Number" })
+    .optional(),
+
   startDate: z.string().optional().optional(),
 
   endDate: z.string().optional().optional(),
@@ -53,6 +57,12 @@ export const createTourZodSchema = z.object({
   division: z.string().refine((val) => mongoose.Types.ObjectId.isValid(val), {
     message: "Invalid ObjectId for division",
   }),
+
+  destination: z
+    .string()
+    .refine((val) => mongoose.Types.ObjectId.isValid(val), {
+      message: "Invalid ObjectId for destination",
+    }),
 
   tourType: z.string().refine((val) => mongoose.Types.ObjectId.isValid(val), {
     message: "Invalid ObjectId for tour type",
@@ -71,6 +81,16 @@ export const createTourZodSchema = z.object({
   departureLocation: z.string().optional(),
 
   arrivalLocation: z.string().optional(),
+
+  isFeatured: z.boolean().optional(),
+
+  isTrending: z.boolean().optional(),
+
+  averageRating: z.number().optional(),
+
+  totalReviews: z.number().optional(),
+
+  status: z.enum(["active", "inactive"]).optional(),
 });
 
 export const updateTourZodSchema = z.object({
@@ -100,6 +120,10 @@ export const updateTourZodSchema = z.object({
 
   costFrom: z.number({ invalid_type_error: "Cost must be number" }).optional(),
 
+  discount: z
+    .number({ invalid_type_error: "Discount must be number" })
+    .optional(),
+
   startDate: z.string().optional().optional(),
 
   endDate: z.string().optional().optional(),
@@ -114,6 +138,13 @@ export const updateTourZodSchema = z.object({
     .string()
     .refine((val) => mongoose.Types.ObjectId.isValid(val), {
       message: "Invalid ObjectId for division",
+    })
+    .optional(),
+
+  destination: z
+    .string()
+    .refine((val) => mongoose.Types.ObjectId.isValid(val), {
+      message: "Invalid ObjectId for destination",
     })
     .optional(),
 
@@ -139,4 +170,14 @@ export const updateTourZodSchema = z.object({
   arrivalLocation: z.string().optional(),
 
   deleteImages: z.array(z.string()).optional(),
+
+  isFeatured: z.boolean().optional(),
+
+  isTrending: z.boolean().optional(),
+
+  averageRating: z.number().optional(),
+
+  totalReviews: z.number().optional(),
+
+  status: z.enum(["active", "inactive"]).optional(),
 });

@@ -28,7 +28,7 @@ const getSingleTourTypeService = async (tourTypeId: string) => {
 
 const updateTourTypeService = async (
   tourTypeId: string,
-  payload: ITourType
+  payload: ITourType,
 ) => {
   const updateTourType = await TourType.findByIdAndUpdate(tourTypeId, payload, {
     new: true,
@@ -57,7 +57,13 @@ const createTourService = async (payload: Partial<ITour>) => {
 };
 
 const getAllTourService = async (query: Record<string, string>) => {
-  const queryBuilder = new QueryBuilder(Tour.find(), query);
+  const queryBuilder = new QueryBuilder(
+    Tour.find()
+      .populate("destination")
+      .populate("division")
+      .populate("tourType"),
+    query,
+  );
   const tours = queryBuilder
     .filter()
     .search(tourSearchableFields)
@@ -77,7 +83,11 @@ const getAllTourService = async (query: Record<string, string>) => {
 };
 
 const getSingleTourService = async (slug: string) => {
-  return await Tour.findOne({ slug }).lean();
+  return await Tour.findOne({ slug })
+    .populate("destination")
+    .populate("division")
+    .populate("tourType")
+    .lean();
 };
 
 const updateTourService = async (tourId: string, payload: Partial<ITour>) => {
@@ -102,7 +112,7 @@ const updateTourService = async (tourId: string, payload: Partial<ITour>) => {
 
   if (payload.deleteImages && isTourExist.images) {
     const restDbImages = isTourExist.images.filter(
-      (imageUrl) => !(payload.images || [])?.includes(imageUrl)
+      (imageUrl) => !(payload.images || [])?.includes(imageUrl),
     );
 
     const updatedPayloadImages = (payload.images || [])
@@ -118,7 +128,7 @@ const updateTourService = async (tourId: string, payload: Partial<ITour>) => {
 
   if (payload.deleteImages && isTourExist.images) {
     await Promise.all(
-      payload.deleteImages.map((url) => deleteImageFromCloudinary(url))
+      payload.deleteImages.map((url) => deleteImageFromCloudinary(url)),
     );
   }
 

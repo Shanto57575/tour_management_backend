@@ -4,6 +4,7 @@ import { AuthRoutes } from "../modules/auth/auth.route";
 import { DivisionRoutes } from "../modules/division/division.route";
 import { TourRoutes } from "../modules/tour/tour.route";
 import { BookingRoutes } from "../modules/booking/booking.route";
+import { DestinationRoutes } from "../modules/destination/destination.route";
 import { PaymentRoutes } from "../modules/payment/payment.route";
 import { OtpRoutes } from "../modules/otp/otp.routes";
 import { StatsRoutes } from "../modules/stats/stats.route";
@@ -27,6 +28,10 @@ const moduleRoutes = [
   {
     path: "/tour",
     element: TourRoutes,
+  },
+  {
+    path: "/destination",
+    element: DestinationRoutes,
   },
   {
     path: "/booking",

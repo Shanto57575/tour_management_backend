@@ -9,7 +9,6 @@ import { uploadBufferToCloudinary } from "../../config/cloudinary.config";
 
 const createUser = catchAsync(async (req: Request, res: Response) => {
   const user = await UserServices.createUserService(req.body);
-
   sendResponse(res, {
     success: true,
     statusCode: httpStatus.CREATED,
@@ -22,15 +21,11 @@ const updateUser = catchAsync(async (req: Request, res: Response) => {
   const userId = req.params.id;
   const verifiedToken = req.user;
 
-  console.log("userId==>", userId);
-  console.log("verifiedToken==>", verifiedToken);
-  console.log("file==>", req.file);
-
   let userImage;
   if (req.file) {
     userImage = await uploadBufferToCloudinary(
       req.file.buffer,
-      req.file.originalname
+      req.file.originalname,
     );
   }
 
@@ -42,7 +37,7 @@ const updateUser = catchAsync(async (req: Request, res: Response) => {
   const user = await UserServices.updateUserService(
     userId,
     payload,
-    verifiedToken as JwtPayload
+    verifiedToken as JwtPayload,
   );
 
   sendResponse(res, {

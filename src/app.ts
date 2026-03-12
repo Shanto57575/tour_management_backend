@@ -29,7 +29,7 @@ const stripeWebhookMiddleware = [
   express.raw({ type: "application/json" }),
   paymentController.stripeWebhook,
 ];
-app.post("/api/v1/payment/webhook", ...stripeWebhookMiddleware);
+
 app.post("/api/v1/payments/webhook", ...stripeWebhookMiddleware);
 
 app.use(express.json());

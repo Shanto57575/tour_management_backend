@@ -16,8 +16,6 @@ const credentialsLogin = catchAsync(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     passport.authenticate("local", async (err: any, user: any, info: any) => {
       if (err) {
-        // return new AppError(401, err);
-        // return next(err)
         return next(new AppError(err.statusCode || 401, err.message));
       }
 

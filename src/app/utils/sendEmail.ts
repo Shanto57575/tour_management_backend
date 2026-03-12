@@ -39,7 +39,7 @@ export const sendEmail = async ({
     const templatePath = path.join(__dirname, `templates/${templateName}.ejs`);
     const html = await ejs.renderFile(templatePath, templateData);
     const info = await transporter.sendMail({
-      from: envVars.EMAIL_SENDER.SMTP_FROM,
+      from: `"TrekOn Team" <${envVars.EMAIL_SENDER.SMTP_FROM}>`,
       to: to,
       subject: subject,
       html: html,

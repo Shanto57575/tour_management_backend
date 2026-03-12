@@ -1,3 +1,247 @@
-<h2>Hello <%= name %>,</h2>
-<p>Your OTP code is: <strong><%= otp %></strong></p>
-<p>This code is valid for 2 minutes</p>
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>TrekOn – OTP Verification</title>
+    <style>
+      @import url("https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap");
+
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: "Outfit", sans-serif;
+        background-color: #f3f0ff;
+        min-height: 100vh;
+        padding: 40px 16px;
+      }
+
+      .wrapper {
+        max-width: 520px;
+        margin: 0 auto;
+      }
+
+      /* Header */
+      .header {
+        text-align: center;
+        padding: 36px 40px 28px;
+        background: #f5f3ff;
+        border-bottom: 3px solid #7c3aed;
+        border-radius: 20px 20px 0 0;
+        border-top: 1px solid #ede9fe;
+        border-left: 1px solid #ede9fe;
+        border-right: 1px solid #ede9fe;
+      }
+
+      .logo {
+        width: 80px;
+        height: 80px;
+        object-fit: contain;
+      }
+
+      /* Body */
+      .body {
+        background: #ffffff;
+        padding: 40px 40px 32px;
+        border-left: 1px solid #ede9fe;
+        border-right: 1px solid #ede9fe;
+      }
+
+      .greeting {
+        font-size: 22px;
+        font-weight: 600;
+        color: #1e1b4b;
+        margin-bottom: 10px;
+      }
+
+      .intro-text {
+        font-size: 15px;
+        color: #4b5563;
+        line-height: 1.7;
+        margin-bottom: 32px;
+      }
+
+      /* OTP Box */
+      .otp-container {
+        background: linear-gradient(135deg, #f5f3ff, #ede9fe);
+        border: 1.5px solid #c4b5fd;
+        border-radius: 16px;
+        padding: 28px 24px;
+        text-align: center;
+        margin-bottom: 28px;
+      }
+
+      .otp-label {
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 3px;
+        text-transform: uppercase;
+        color: #7c3aed;
+        margin-bottom: 14px;
+      }
+
+      .otp-code {
+        font-size: 48px;
+        font-weight: 700;
+        letter-spacing: 14px;
+        color: #4c1d95;
+        padding-left: 14px;
+      }
+
+      .otp-validity {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        margin-top: 14px;
+        padding: 6px 16px;
+        background: #ffffff;
+        border: 1px solid #c4b5fd;
+        border-radius: 20px;
+        font-size: 12px;
+        font-weight: 500;
+        color: #6d28d9;
+      }
+
+      .otp-validity::before {
+        content: "⏱";
+        font-size: 13px;
+      }
+
+      /* Warning */
+      .warning-box {
+        display: flex;
+        gap: 12px;
+        align-items: flex-start;
+        background: #faf5ff;
+        border-left: 3px solid #8b5cf6;
+        border-radius: 0 10px 10px 0;
+        padding: 14px 16px;
+        margin-bottom: 28px;
+      }
+
+      .warning-icon {
+        font-size: 16px;
+        margin-top: 1px;
+      }
+
+      .warning-text {
+        font-size: 13px;
+        color: #374151;
+        line-height: 1.6;
+      }
+
+      .warning-text strong {
+        color: #1e1b4b;
+      }
+      .warning-text a {
+        color: #7c3aed;
+        text-decoration: none;
+      }
+
+      /* Divider */
+      .divider {
+        height: 1px;
+        background: linear-gradient(
+          to right,
+          transparent,
+          #ddd6fe,
+          transparent
+        );
+        margin: 4px 0 24px;
+      }
+
+      .help-text {
+        font-size: 13px;
+        color: #6b7280;
+        line-height: 1.8;
+      }
+
+      .help-text a {
+        color: #7c3aed;
+        text-decoration: none;
+        font-weight: 500;
+      }
+
+      /* Footer */
+      .footer {
+        background: #f5f3ff;
+        border: 1px solid #ede9fe;
+        border-top: none;
+        border-radius: 0 0 20px 20px;
+        padding: 20px 40px;
+        text-align: center;
+      }
+
+      .footer-copy {
+        font-size: 12px;
+        color: #6b7280;
+      }
+
+      .footer-copy span {
+        color: #7c3aed;
+        font-weight: 600;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrapper">
+      <!-- Header -->
+      <div class="header">
+        <img
+          src="https://res.cloudinary.com/dvwhbp6vw/image/upload/v1772996437/trekOn_a9ofcd.png"
+          alt="TrekOn Logo"
+          class="logo"
+        />
+      </div>
+
+      <!-- Body -->
+      <div class="body">
+        <p class="greeting">Hello, <%= name %> 👋</p>
+        <p class="intro-text">
+          Welcome to TrekOn! Use the verification code below to confirm your
+          identity and complete your sign-up.
+        </p>
+
+        <!-- OTP -->
+        <div class="otp-container">
+          <div class="otp-label">Your Verification Code</div>
+          <div class="otp-code"><%= otp %></div>
+          <div class="otp-validity">Valid for 2 minutes only</div>
+        </div>
+
+        <!-- Warning -->
+        <div class="warning-box">
+          <span class="warning-icon">🔒</span>
+          <p class="warning-text">
+            <strong>Never share this code</strong> with anyone — including
+            TrekOn support. If you didn't request this, please ignore this email
+            or <a href="#">contact us</a>.
+          </p>
+        </div>
+
+        <div class="divider"></div>
+
+        <p class="help-text">
+          Need help? Reach us at
+          <a href="mailto:support@trekon.com">support@trekon.com</a><br />
+          We're always here to help you explore the world. 🌍
+        </p>
+      </div>
+
+      <!-- Footer -->
+      <div class="footer">
+        <p class="footer-copy">
+          ©
+          <script>
+            document.write(new Date().getFullYear());
+          </script>
+          <span>TrekOn</span>. All rights reserved.
+        </p>
+      </div>
+    </div>
+  </body>
+</html>

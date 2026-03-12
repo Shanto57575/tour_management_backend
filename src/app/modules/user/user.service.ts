@@ -9,7 +9,7 @@ import { QueryBuilder } from "../../utils/queryBuilder";
 import { userSearchableFields } from "./user.constant";
 
 const createUserService = async (payload: Partial<IUser>) => {
-  const { email, password, ...rest } = await payload;
+  const { email, password, ...rest } = payload;
 
   const isUserExists = await User.findOne({ email });
 
@@ -19,7 +19,7 @@ const createUserService = async (payload: Partial<IUser>) => {
 
   const hashedPassword = await bcryptjs.hash(
     password as string,
-    Number(envVars.BCRYPT_SALT_ROUND)
+    Number(envVars.BCRYPT_SALT_ROUND),
   );
 
   const authProvider: IAuthProvider = {
@@ -43,9 +43,9 @@ const createUserService = async (payload: Partial<IUser>) => {
 const updateUserService = async (
   userId: string,
   payload: Partial<IUser>,
-  decodedToken: JwtPayload
+  decodedToken: JwtPayload,
 ) => {
-  console.log(userId, payload, decodedToken);
+
   if (decodedToken.role === Role.USER || decodedToken.role === Role.GUIDE) {
     if (userId !== decodedToken.userId) {
       throw new AppError(401, "You are not authorized");

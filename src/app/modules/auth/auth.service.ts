@@ -74,7 +74,7 @@ const setPasswordService = async (userId: string, plainPassword: string) => {
   ) {
     throw new AppError(
       httpStatus.BAD_REQUEST,
-      "You have already set your password.Now you can change the password from your profile password update!",
+      "You have already set your password.Now you can change the password from your profile page!",
     );
   }
 
