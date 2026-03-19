@@ -4,15 +4,15 @@ import { GuideServices } from "./guide.service";
 import { catchAsync } from "../../utils/catchAsync";
 import { sendResponse } from "../../utils/sendResponse";
 import { JwtPayload } from "jsonwebtoken";
+import type { GuideApplicationFiles } from "./guide.interface";
 
-const applyAsGuide = catchAsync(async (req: Request, res: Response) => {
+const applyForGuide = catchAsync(async (req: Request, res: Response) => {
   const user = req.user as JwtPayload;
-  const { divisionId } = req.body;
 
-  const application = await GuideServices.applyAsGuideService(
+  const application = await GuideServices.createGuideApplication(
     user.userId,
-    divisionId,
-    req.file,
+    req.body,
+    req.files as GuideApplicationFiles,
   );
 
   sendResponse(res, {
@@ -23,25 +23,44 @@ const applyAsGuide = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
-const updateApplicationStatus = catchAsync(
-  async (req: Request, res: Response) => {
-    const { id } = req.params;
-    const { status, rejectionReason } = req.body;
+const updateStatus = catchAsync(async (req: Request, res: Response) => {
+  const user = req.user as JwtPayload;
+  const { id } = req.params;
+  const { status, reason } = req.body;
 
-    const application = await GuideServices.updateApplicationStatusService(
-      id,
-      status,
-      rejectionReason,
-    );
+  const application = await GuideServices.updateApplicationStatus(
+    id,
+    status,
+    user.userId,
+    reason,
+  );
 
-    sendResponse(res, {
-      success: true,
-      statusCode: httpStatus.OK,
-      message: "Guide application updated successfully",
-      data: application,
-    });
-  },
-);
+  sendResponse(res, {
+    success: true,
+    statusCode: httpStatus.OK,
+    message: "Guide application updated successfully",
+    data: application,
+  });
+});
+
+const reapply = catchAsync(async (req: Request, res: Response) => {
+  const user = req.user as JwtPayload;
+  const { id } = req.params;
+
+  const application = await GuideServices.reapplyGuideApplication(
+    id,
+    user.userId,
+    req.body,
+    req.files as GuideApplicationFiles,
+  );
+
+  sendResponse(res, {
+    success: true,
+    statusCode: httpStatus.OK,
+    message: "Guide application reapplied successfully",
+    data: application,
+  });
+});
 
 const getAllApplications = catchAsync(async (req: Request, res: Response) => {
   const query = req.query as Record<string, string>;
@@ -80,23 +99,11 @@ const getSingleApplication = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
-const archiveApplication = catchAsync(async (req: Request, res: Response) => {
-  const { id } = req.params;
-  const application = await GuideServices.archiveApplicationService(id);
-
-  sendResponse(res, {
-    success: true,
-    statusCode: httpStatus.OK,
-    message: "Guide application archived successfully",
-    data: application,
-  });
-});
-
 export const GuideController = {
-  applyAsGuide,
-  updateApplicationStatus,
+  applyForGuide,
+  updateStatus,
+  reapply,
   getAllApplications,
   getMyApplication,
   getSingleApplication,
-  archiveApplication,
 };

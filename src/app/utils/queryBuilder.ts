@@ -11,10 +11,36 @@ export class QueryBuilder<T> {
   }
 
   filter(): this {
-    const filter = { ...this.query };
+    const filter: Record<string, unknown> = { ...this.query };
     for (const field of excludeField) {
       // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
       delete filter[field];
+    }
+
+    const minPrice = Number(this.query.minPrice);
+    const maxPrice = Number(this.query.maxPrice);
+
+    if (!Number.isNaN(minPrice) || !Number.isNaN(maxPrice)) {
+      const startingPriceRange: Record<string, number> = {};
+
+      if (!Number.isNaN(minPrice)) {
+        startingPriceRange.$gte = minPrice;
+      }
+
+      if (!Number.isNaN(maxPrice)) {
+        startingPriceRange.$lte = maxPrice;
+      }
+
+      filter.startingPrice = startingPriceRange;
+    }
+
+    if (typeof filter.division === "string" && filter.division.includes(",")) {
+      filter.division = {
+        $in: filter.division
+          .split(",")
+          .map((id) => id.trim())
+          .filter(Boolean),
+      };
     }
 
     this.modelQuery = this.modelQuery.find(filter);

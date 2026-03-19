@@ -4,19 +4,23 @@ import { checkAuth } from "../../middlewares/checkAuth";
 import { Role } from "../user/user.interface";
 import { multerUpload } from "../../config/multer.config";
 import { validateRequest } from "../../middlewares/validateRequest";
+import { validateGuideUploadFiles } from "../../utils/validateGuideUploadFiles";
 import {
   createGuideApplicationZodSchema,
+  updateGuideApplicationZodSchema,
   updateGuideStatusZodSchema,
 } from "./guide.validation";
+import { GUIDE_APPLICATION_UPLOAD_FIELDS } from "./guide.constant";
 
 const router = Router();
 
 router.post(
-  "/apply",
+  "/",
   checkAuth(Role.USER),
-  multerUpload.single("file"),
+  multerUpload.fields(GUIDE_APPLICATION_UPLOAD_FIELDS),
+  validateGuideUploadFiles,
   validateRequest(createGuideApplicationZodSchema),
-  GuideController.applyAsGuide,
+  GuideController.applyForGuide,
 );
 
 router.get(
@@ -29,13 +33,16 @@ router.patch(
   "/:id/status",
   checkAuth(Role.ADMIN, Role.SUPER_ADMIN),
   validateRequest(updateGuideStatusZodSchema),
-  GuideController.updateApplicationStatus,
+  GuideController.updateStatus,
 );
 
 router.patch(
-  "/:id/archive",
-  checkAuth(Role.ADMIN),
-  GuideController.archiveApplication,
+  "/:id/reapply",
+  checkAuth(Role.USER, Role.GUIDE),
+  multerUpload.fields(GUIDE_APPLICATION_UPLOAD_FIELDS),
+  validateGuideUploadFiles,
+  validateRequest(updateGuideApplicationZodSchema),
+  GuideController.reapply,
 );
 
 router.get(

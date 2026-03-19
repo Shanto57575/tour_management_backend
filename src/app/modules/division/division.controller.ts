@@ -12,7 +12,6 @@ const createDivision = catchAsync(
       thumbnail: req.file?.path,
     };
     const divisionInfo = await divisionService.createDivisionService(payload);
-    console.log(divisionInfo);
 
     sendResponse(res, {
       statusCode: httpStatus.CREATED,
@@ -75,7 +74,7 @@ const updateDivision = catchAsync(
 );
 
 const deleteDivision = catchAsync(
-  async (req: Request, res: Response, next: NextFunction) => {
+  async (req: Request, res: Response, _next: NextFunction) => {
     await divisionService.DeleteDivisionService(req.params.id);
 
     sendResponse(res, {

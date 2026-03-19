@@ -87,7 +87,6 @@ destinationSchema.pre("save", function (next) {
 });
 
 
-// update slug if name changes
 destinationSchema.pre("findOneAndUpdate", function (next) {
   const update = this.getUpdate() as Partial<IDestination>;
 

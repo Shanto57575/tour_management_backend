@@ -9,6 +9,7 @@ import { PaymentRoutes } from "../modules/payment/payment.route";
 import { OtpRoutes } from "../modules/otp/otp.routes";
 import { StatsRoutes } from "../modules/stats/stats.route";
 import { GuideRoutes } from "../modules/guide/guide.route";
+import { DistrictRoutes } from "../modules/district/district.route";
 
 export const router = Router();
 
@@ -26,12 +27,16 @@ const moduleRoutes = [
     element: DivisionRoutes,
   },
   {
-    path: "/tour",
-    element: TourRoutes,
+    path: "/district",
+    element: DistrictRoutes,
   },
   {
     path: "/destination",
     element: DestinationRoutes,
+  },
+  {
+    path: "/tour",
+    element: TourRoutes,
   },
   {
     path: "/booking",
