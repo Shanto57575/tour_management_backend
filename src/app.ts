@@ -30,7 +30,7 @@ const stripeWebhookMiddleware = [
   paymentController.stripeWebhook,
 ];
 
-app.post("/api/v1/payments/webhook", ...stripeWebhookMiddleware);
+app.post("/api/v1/payment/webhook", ...stripeWebhookMiddleware);
 
 app.use(express.json());
 app.set("trust proxy", 1);

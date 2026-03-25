@@ -1,196 +1,319 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-import { uploadBufferToCloudinary } from "../../config/cloudinary.config";
+/* eslint-disable @typescript-eslint/no-non-null-assertion */
 import AppError from "../../errorHelpers/AppError";
-import { generatePdf, IInvoiceData } from "../../utils/invoice";
-import { sendEmail } from "../../utils/sendEmail";
 import { BOOKING_STATUS } from "../booking/booking.interface";
 import { Booking } from "../booking/booking.model";
-import { ITour } from "../tour/tour.interface";
-import { IUser } from "../user/user.interface";
-import { PAYMENT_STATUS } from "./payment.interface";
+import {
+  PAYMENT_METHOD,
+  PAYMENT_STATUS,
+  REFUND_STATUS,
+} from "./payment.interface";
 import { Payment } from "./payment.model";
 import httpStatus from "http-status-codes";
 import Stripe from "stripe";
+import { StripeService } from "../stripe/stripe.service";
+import { getTransactionId } from "../../utils/transactionId";
+import { stripe } from "../stripe/stripe.config";
+import { Role } from "../user/user.interface";
 
-/**
- * Handles a successful Stripe payment.
- * Triggered by `payment_intent.succeeded` webhook event.
- * Idempotent — bails early if payment is already marked PAID.
- */
-const handlePaymentSuccess = async (
-  paymentIntent: Stripe.PaymentIntent,
-): Promise<void> => {
-  const { bookingId, transactionId } = paymentIntent.metadata;
+const createPaymentIntentService = async (
+  bookingId: string,
+  method: PAYMENT_METHOD,
+  userId: string,
+) => {
+  const booking = await Booking.findById(bookingId).lean();
 
-  if (!bookingId || !transactionId) {
+  if (!booking) {
+    throw new AppError(httpStatus.NOT_FOUND, "Booking not found");
+  }
+
+  if (String(booking.user) !== userId) {
+    throw new AppError(httpStatus.FORBIDDEN, "Access denied");
+  }
+
+  if (booking.status !== BOOKING_STATUS.PENDING) {
     throw new AppError(
       httpStatus.BAD_REQUEST,
-      "Missing metadata on PaymentIntent",
+      "Payment is only allowed for pending bookings",
     );
   }
 
-  const session = await Booking.startSession();
-  session.startTransaction();
+  const existingPayment = await Payment.findOne({ booking: bookingId });
 
-  try {
-    // Idempotency guard — skip if already processed
-    const existingPayment = await Payment.findOne({
-      transactionId,
-    }).session(session);
+  if (existingPayment?.status === PAYMENT_STATUS.PAID) {
+    throw new AppError(httpStatus.BAD_REQUEST, "This booking is already paid");
+  }
 
-    if (!existingPayment) {
-      throw new AppError(httpStatus.NOT_FOUND, "Payment Not Found");
-    }
+  const paymentPayload: Record<string, unknown> = {
+    booking: booking._id,
+    amount: booking.totalPrice,
+    currency: "BDT",
+    method,
+    status: PAYMENT_STATUS.UNPAID,
+    paidAt: undefined,
+    refund: undefined,
+  };
 
-    if (existingPayment.status === PAYMENT_STATUS.PAID) {
-      await session.abortTransaction();
-      session.endSession();
-      return; // Already processed — idempotent exit
-    }
+  let clientSecret: string | null = null;
+  let stripeIntent: { clientSecret: string; paymentIntentId: string } | null = null;
 
-    // Update payment status
-    const updatedPayment = await Payment.findByIdAndUpdate(
-      existingPayment._id,
-      {
-        status: PAYMENT_STATUS.PAID,
-        paymentGatewayData: {
-          paymentIntentId: paymentIntent.id,
-          amount: paymentIntent.amount,
-          currency: paymentIntent.currency,
-          status: paymentIntent.status,
-        },
-      },
-      { new: true, runValidators: true, session },
-    );
-
-    if (!updatedPayment) {
-      throw new AppError(httpStatus.NOT_FOUND, "Payment update failed");
-    }
-
-    // Update booking status
-    const updatedBooking = await Booking.findByIdAndUpdate(
-      bookingId,
-      { status: BOOKING_STATUS.COMPLETE },
-      { new: true, runValidators: true, session },
-    )
-      .populate("tour", "title")
-      .populate("user", "name email");
-
-    if (!updatedBooking) {
-      throw new AppError(httpStatus.NOT_FOUND, "Booking Not Found");
-    }
-
-    // Generate Invoice PDF
-    const invoiceData: IInvoiceData = {
-      bookingDate: updatedBooking.createdAt as Date,
-      guestCount: updatedBooking.guestCount,
-      transactionId: updatedPayment.transactionId,
-      totalAmount: updatedPayment.amount,
-      tourTitle: (updatedBooking.tour as unknown as ITour).title,
-      userName: (updatedBooking.user as unknown as IUser).name,
-    };
-
-    const pdfBuffer = await generatePdf(invoiceData);
-    const cloudinaryResult = await uploadBufferToCloudinary(
-      pdfBuffer,
-      "invoice",
-    );
-
-    if (!cloudinaryResult) {
-      throw new AppError(
-        httpStatus.INTERNAL_SERVER_ERROR,
-        "Error uploading pdf",
-      );
-    }
-
-    await Payment.findByIdAndUpdate(
-      updatedPayment._id,
-      { invoiceUrl: cloudinaryResult.secure_url },
-      { runValidators: true, session },
-    );
-
-    // Send confirmation email
-    await sendEmail({
-      to: (updatedBooking.user as unknown as IUser).email,
-      subject: "Your Booking Invoice",
-      templateName: "invoice",
-      templateData: invoiceData,
-      attachments: [
-        {
-          filename: "invoice.pdf",
-          content: pdfBuffer,
-          contentType: "application/pdf",
-        },
-      ],
+  if (method === PAYMENT_METHOD.CARD) {
+    stripeIntent = await StripeService.createPaymentIntent({
+      amount: booking.totalPrice,
+      currency: "bdt",
+      bookingId: String(booking._id),
+      userId,
+      transactionId: existingPayment?.transactionId ?? getTransactionId(),
     });
 
-    await session.commitTransaction();
-    session.endSession();
-  } catch (error) {
-    await session.abortTransaction();
-    session.endSession();
-    throw error;
+    clientSecret = stripeIntent.clientSecret;
+    paymentPayload.paymentGatewayData = {
+      paymentIntentId: stripeIntent.paymentIntentId,
+      provider: PAYMENT_METHOD.CARD,
+    };
   }
+
+  const transactionId =
+    method === PAYMENT_METHOD.CARD
+      ? stripeIntent!.paymentIntentId
+      : existingPayment?.transactionId ?? getTransactionId();
+
+  paymentPayload.transactionId = transactionId;
+
+  const payment = existingPayment
+    ? await Payment.findByIdAndUpdate(existingPayment._id, paymentPayload, {
+        new: true,
+        runValidators: true,
+      })
+    : await Payment.create(paymentPayload);
+
+  return {
+    payment,
+    clientSecret,
+  };
 };
 
 /**
- * Handles a failed Stripe payment.
- * Triggered by `payment_intent.payment_failed` webhook event.
+ * Internal-only overload used by Stripe webhook (no user context needed).
+ * External HTTP callers must use the overload that accepts userId + role.
  */
+const confirmPaymentService = async (
+  transactionId: string,
+  gatewayData?: Record<string, unknown>,
+  caller?: { userId: string; role: string },
+) => {
+  const payment = await Payment.findOne({ transactionId }).populate<{
+    booking: { _id: unknown; user: unknown };
+  }>("booking", "user");
+
+  if (!payment) {
+    throw new AppError(httpStatus.NOT_FOUND, "Payment not found");
+  }
+
+  // Ownership check — skip for internal webhook calls (no caller supplied)
+  if (caller) {
+    const isPrivileged =
+      caller.role === Role.ADMIN || caller.role === Role.SUPER_ADMIN;
+    const bookingOwnerId = String(
+      (payment.booking as { _id: unknown; user: unknown }).user,
+    );
+    if (!isPrivileged && bookingOwnerId !== caller.userId) {
+      throw new AppError(httpStatus.FORBIDDEN, "Access denied");
+    }
+  }
+
+  if (payment.status === PAYMENT_STATUS.PAID) {
+    return payment;
+  }
+
+  const session = await Payment.startSession();
+  let updatedPayment: Awaited<ReturnType<typeof Payment.findById>> | null = null;
+
+  try {
+    await session.withTransaction(async () => {
+      updatedPayment = await Payment.findByIdAndUpdate(
+        payment._id,
+        {
+          $set: {
+            status: PAYMENT_STATUS.PAID,
+            paidAt: new Date(),
+            paymentGatewayData: gatewayData,
+          },
+        },
+        { new: true, runValidators: true, session },
+      );
+
+      await Booking.findByIdAndUpdate(
+        payment.booking,
+        { $set: { status: BOOKING_STATUS.CONFIRMED } },
+        { runValidators: true, session },
+      );
+    });
+
+    return updatedPayment;
+  } finally {
+    await session.endSession();
+  }
+};
+
+const processRefundService = async (bookingId: string, reason?: string) => {
+  const payment = await Payment.findOne({ booking: bookingId });
+
+  if (!payment) {
+    throw new AppError(httpStatus.NOT_FOUND, "Payment not found");
+  }
+
+  if (payment.status !== PAYMENT_STATUS.PAID) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      "Refund is only allowed for paid payments",
+    );
+  }
+
+  if (payment.refund?.status === REFUND_STATUS.COMPLETED) {
+    throw new AppError(httpStatus.BAD_REQUEST, "Payment is already refunded");
+  }
+
+  if (payment.refund?.status === REFUND_STATUS.PENDING) {
+    return payment;
+  }
+
+  if (payment.method === PAYMENT_METHOD.CARD) {
+    await stripe.refunds.create({ payment_intent: payment.transactionId });
+  }
+
+  return Payment.findByIdAndUpdate(
+    payment._id,
+    {
+      $set: {
+        refund: {
+          amount: payment.amount,
+          reason,
+          refundedAt: new Date(),
+          status: REFUND_STATUS.PENDING,
+        },
+      },
+    },
+    { new: true, runValidators: true },
+  );
+};
+
+const handlePaymentSuccess = async (
+  paymentIntent: Stripe.PaymentIntent,
+): Promise<void> => {
+  await confirmPaymentService(paymentIntent.id, {
+    paymentIntentId: paymentIntent.id,
+    amount: paymentIntent.amount,
+    currency: paymentIntent.currency,
+    status: paymentIntent.status,
+    metadata: paymentIntent.metadata,
+  });
+};
+
 const handlePaymentFailed = async (
   paymentIntent: Stripe.PaymentIntent,
 ): Promise<void> => {
-  const { bookingId, transactionId } = paymentIntent.metadata;
-
-  if (!bookingId || !transactionId) return;
-
-  const session = await Booking.startSession();
-  session.startTransaction();
-
-  try {
-    await Payment.findOneAndUpdate(
-      { transactionId },
-      {
+  await Payment.findOneAndUpdate(
+    { transactionId: paymentIntent.id },
+    {
+      $set: {
         status: PAYMENT_STATUS.FAILED,
         paymentGatewayData: {
           paymentIntentId: paymentIntent.id,
           status: paymentIntent.status,
+          metadata: paymentIntent.metadata,
         },
       },
-      { runValidators: true, session },
-    );
-
-    await Booking.findByIdAndUpdate(
-      bookingId,
-      { status: BOOKING_STATUS.FAILED },
-      { runValidators: true, session },
-    );
-
-    await session.commitTransaction();
-    session.endSession();
-  } catch (error) {
-    await session.abortTransaction();
-    session.endSession();
-    throw error;
-  }
+    },
+    { runValidators: true },
+  );
 };
 
-const getInvoiceDownloadUrlService = async (paymentId: string) => {
-  const payment = await Payment.findById(paymentId).select("invoiceUrl");
+const handleRefundCompleted = async (charge: Stripe.Charge) => {
+  if (typeof charge.payment_intent !== "string") {
+    return;
+  }
+
+  await Payment.findOneAndUpdate(
+    { transactionId: charge.payment_intent },
+    {
+      $set: {
+        status: PAYMENT_STATUS.REFUNDED,
+        "refund.amount": charge.amount_refunded / 100,
+        "refund.refundedAt": new Date(),
+        "refund.status": REFUND_STATUS.COMPLETED,
+      },
+    },
+    { runValidators: true },
+  );
+};
+
+const handleRefundUpdated = async (refund: Stripe.Refund) => {
+  if (!refund.payment_intent || typeof refund.payment_intent !== "string") {
+    return;
+  }
+
+  const refundStatus =
+    refund.status === "failed"
+      ? REFUND_STATUS.FAILED
+      : refund.status === "succeeded"
+        ? REFUND_STATUS.COMPLETED
+        : REFUND_STATUS.PENDING;
+
+  await Payment.findOneAndUpdate(
+    { transactionId: refund.payment_intent },
+    {
+      $set: {
+        status:
+          refundStatus === REFUND_STATUS.COMPLETED
+            ? PAYMENT_STATUS.REFUNDED
+            : PAYMENT_STATUS.PAID,
+        refund: {
+          amount: refund.amount / 100,
+          reason: refund.reason ?? undefined,
+          refundedAt: new Date(),
+          status: refundStatus,
+        },
+      },
+    },
+    { runValidators: true },
+  );
+};
+
+const getInvoiceDownloadUrlService = async (
+  paymentId: string,
+  caller: { userId: string; role: string },
+) => {
+  const payment = await Payment.findById(paymentId)
+    .select("invoiceUrl booking")
+    .populate<{ booking: { user: unknown } }>("booking", "user");
 
   if (!payment) {
-    throw new AppError(404, "payment not found");
+    throw new AppError(httpStatus.NOT_FOUND, "Payment not found");
+  }
+
+  const isPrivileged =
+    caller.role === Role.ADMIN || caller.role === Role.SUPER_ADMIN;
+  const bookingOwnerId = String(
+    (payment.booking as { user: unknown }).user,
+  );
+  if (!isPrivileged && bookingOwnerId !== caller.userId) {
+    throw new AppError(httpStatus.FORBIDDEN, "Access denied");
   }
 
   if (!payment.invoiceUrl) {
-    throw new AppError(404, "No Invoice Found");
+    throw new AppError(httpStatus.NOT_FOUND, "No Invoice Found");
   }
 
   return payment.invoiceUrl;
 };
 
 export const PaymentService = {
+  createPaymentIntentService,
+  confirmPaymentService,
+  processRefundService,
   handlePaymentSuccess,
   handlePaymentFailed,
+  handleRefundCompleted,
+  handleRefundUpdated,
   getInvoiceDownloadUrlService,
 };

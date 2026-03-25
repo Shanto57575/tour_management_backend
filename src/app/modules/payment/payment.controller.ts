@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
 import { NextFunction, Request, Response } from "express";
 import { catchAsync } from "../../utils/catchAsync";
 import { PaymentService } from "./payment.service";
@@ -6,6 +5,53 @@ import { sendResponse } from "../../utils/sendResponse";
 import { stripe } from "../stripe/stripe.config";
 import { envVars } from "../../config/env";
 import Stripe from "stripe";
+import { JwtPayload } from "jsonwebtoken";
+import AppError from "../../errorHelpers/AppError";
+import httpStatus from "http-status-codes";
+
+const createPaymentIntent = catchAsync(async (req: Request, res: Response) => {
+  try {
+    const decodedToken = req.user as JwtPayload;
+    const result = await PaymentService.createPaymentIntentService(
+      req.body.bookingId,
+      req.body.method,
+      decodedToken.userId,
+    );
+
+    sendResponse(res, {
+      statusCode: 201,
+      success: true,
+      message: "Payment intent created successfully",
+      data: result,
+    });
+  } catch (error: unknown) {
+    const mongoError = error as { code?: number };
+    if (mongoError?.code === 11000) {
+      throw new AppError(
+        httpStatus.BAD_REQUEST,
+        "A payment already exists for this booking",
+      );
+    }
+
+    throw error;
+  }
+});
+
+const confirmPayment = catchAsync(async (req: Request, res: Response) => {
+  const caller = req.user as JwtPayload;
+  const result = await PaymentService.confirmPaymentService(
+    req.body.transactionId,
+    req.body.gatewayData,
+    { userId: caller.userId, role: caller.role },
+  );
+
+  sendResponse(res, {
+    statusCode: 200,
+    success: true,
+    message: "Payment confirmed successfully",
+    data: result,
+  });
+});
 
 const stripeWebhook = async (
   req: Request,
@@ -42,6 +88,16 @@ const stripeWebhook = async (
         await PaymentService.handlePaymentFailed(paymentIntent);
         break;
       }
+      case "charge.refunded": {
+        const charge = event.data.object as Stripe.Charge;
+        await PaymentService.handleRefundCompleted(charge);
+        break;
+      }
+      case "refund.updated": {
+        const refund = event.data.object as Stripe.Refund;
+        await PaymentService.handleRefundUpdated(refund);
+        break;
+      }
       default:
         console.log(`Unhandled Stripe event type: ${event.type}`);
     }
@@ -55,7 +111,11 @@ const stripeWebhook = async (
 const getInvoiceDownloadUrl = catchAsync(
   async (req: Request, res: Response) => {
     const { paymentId } = req.params;
-    const result = await PaymentService.getInvoiceDownloadUrlService(paymentId);
+    const caller = req.user as JwtPayload;
+    const result = await PaymentService.getInvoiceDownloadUrlService(
+      paymentId,
+      { userId: caller.userId, role: caller.role },
+    );
 
     sendResponse(res, {
       statusCode: 200,
@@ -67,6 +127,8 @@ const getInvoiceDownloadUrl = catchAsync(
 );
 
 export const paymentController = {
+  createPaymentIntent,
+  confirmPayment,
   stripeWebhook,
   getInvoiceDownloadUrl,
 };

@@ -4,6 +4,7 @@ import { checkAuth } from "../../middlewares/checkAuth";
 import { Role } from "../user/user.interface";
 import { validateRequest } from "../../middlewares/validateRequest";
 import {
+  cancelBookingZodSchema,
   createBookingZodSchema,
   updateBookingStatusZodSchema,
 } from "./booking.validation";
@@ -11,7 +12,7 @@ import {
 const router = Router();
 
 router.post(
-  "/create-booking",
+  "/",
   checkAuth(...Object.values(Role)),
   validateRequest(createBookingZodSchema),
   BookingController.createBooking,
@@ -29,28 +30,24 @@ router.get(
   BookingController.getUserBookings,
 );
 
-router.get(
-  "/:bookingId",
+router.patch(
+  "/:id/cancel",
   checkAuth(...Object.values(Role)),
-  BookingController.getSingleBooking,
+  validateRequest(cancelBookingZodSchema),
+  BookingController.cancelBooking,
 );
 
 router.patch(
-  "/:bookingId",
-  checkAuth(...Object.values(Role)),
+  "/:id/status",
+  checkAuth(Role.ADMIN, Role.SUPER_ADMIN),
   validateRequest(updateBookingStatusZodSchema),
   BookingController.updateBookingStatus,
 );
 
-/**
- * POST /api/v1/booking/re-init-payment/:bookingId
- * Creates a new Stripe PaymentIntent for an existing PENDING/UNPAID booking.
- * Returns clientSecret so the frontend can open the Stripe checkout modal.
- */
-router.post(
-  "/re-init-payment/:bookingId",
+router.get(
+  "/:bookingId",
   checkAuth(...Object.values(Role)),
-  BookingController.reInitPayment,
+  BookingController.getSingleBooking,
 );
 
 export const BookingRoutes = router;

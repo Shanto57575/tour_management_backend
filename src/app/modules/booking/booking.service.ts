@@ -1,102 +1,199 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import AppError from "../../errorHelpers/AppError";
 import { User } from "../user/user.model";
-import { IBooking } from "./booking.interface";
+import { BOOKING_STATUS, IBooking } from "./booking.interface";
 import httpStatus from "http-status-codes";
 import { Booking } from "./booking.model";
 import { Tour } from "../tour/tour.model";
 import { Payment } from "../payment/payment.model";
-import { StripeService } from "../stripe/stripe.service";
 import { QueryBuilder } from "../../utils/queryBuilder";
 import { JwtPayload } from "jsonwebtoken";
-import { getTransactionId } from "../../utils/transactionId";
 import { PAYMENT_STATUS } from "../payment/payment.interface";
+import { Role } from "../user/user.interface";
+
+const validateBookingDate = (bookingDate: unknown): Date => {
+  const date = new Date(bookingDate as string);
+  if (isNaN(date.getTime())) {
+    throw new AppError(httpStatus.BAD_REQUEST, "Invalid booking date");
+  }
+  const startOfToday = new Date();
+  startOfToday.setHours(0, 0, 0, 0);
+  if (date <= startOfToday) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      "Booking date must be in the future",
+    );
+  }
+  return date;
+};
 
 const createBookingService = async (
   payload: Partial<IBooking>,
   userId: string,
 ) => {
-  const transactionId = getTransactionId();
   const session = await Booking.startSession();
-  session.startTransaction();
+  let createdBooking: IBooking | null = null;
 
   try {
     const user = await User.findById(userId);
 
-    if (!user?.phone || !user?.address) {
-      throw new AppError(
-        httpStatus.BAD_REQUEST,
-        "Please update your profile to book a tour",
+    if (!user) {
+      throw new AppError(httpStatus.NOT_FOUND, "User not found");
+    }
+
+    const guestCount = Number(payload.guestCount);
+
+    if (!Number.isInteger(guestCount) || guestCount < 1) {
+      throw new AppError(httpStatus.BAD_REQUEST, "Guest count must be at least 1");
+    }
+
+    const bookingDate = validateBookingDate(payload.bookingDate);
+
+    await session.withTransaction(async () => {
+      const tour = await Tour.findById(payload.tour)
+        .select(
+          "status isAvailable maxGuest bookedCount pricePerPerson discount",
+        )
+        .session(session);
+
+      if (!tour) {
+        throw new AppError(httpStatus.NOT_FOUND, "Tour not found");
+      }
+
+      if (tour.status !== "active" || !tour.isAvailable) {
+        throw new AppError(
+          httpStatus.BAD_REQUEST,
+          "Tour is not available for booking",
+        );
+      }
+
+      if (typeof tour.maxGuest !== "number" || tour.maxGuest < 1) {
+        throw new AppError(
+          httpStatus.BAD_REQUEST,
+          "Tour capacity is not configured",
+        );
+      }
+
+      if (typeof tour.bookedCount !== "number") {
+        throw new AppError(
+          httpStatus.BAD_REQUEST,
+          "Tour inventory is not configured",
+        );
+      }
+
+      if (typeof tour.pricePerPerson !== "number") {
+        throw new AppError(
+          httpStatus.BAD_REQUEST,
+          "Tour price is not configured",
+        );
+      }
+
+      const remainingSeats = Math.max(tour.maxGuest - tour.bookedCount, 0);
+
+      if (guestCount > remainingSeats) {
+        throw new AppError(
+          httpStatus.BAD_REQUEST,
+          `Only ${remainingSeats} seats remaining`,
+        );
+      }
+
+      const discount = Number(tour.discount ?? 0);
+      const totalPrice = Number(
+        (
+          (tour.pricePerPerson - (tour.pricePerPerson * discount) / 100) *
+          guestCount
+        ).toFixed(2),
       );
-    }
 
-    const tour = await Tour.findById(payload.tour).select("costFrom");
-
-    if (!tour?.costFrom) {
-      throw new AppError(httpStatus.BAD_REQUEST, "No Tour cost Found!");
-    }
-
-    const amount = Number(tour.costFrom) * Number(payload.guestCount);
-
-    const booking = await Booking.create(
-      [
+      const updatedTour = await Tour.findOneAndUpdate(
         {
-          user: userId,
-          ...payload,
+          _id: tour._id,
+          status: "active",
+          isAvailable: true,
+          $expr: {
+            $gte: [{ $subtract: ["$maxGuest", "$bookedCount"] }, guestCount],
+          },
         },
-      ],
-      { session },
-    );
-
-    const payment = await Payment.create(
-      [
         {
-          booking: booking[0]._id,
-          transactionId,
-          amount,
+          $inc: { bookedCount: guestCount },
+          ...(tour.bookedCount + guestCount >= tour.maxGuest
+            ? { $set: { isAvailable: false } }
+            : {}),
         },
-      ],
-      { session },
-    );
+        { new: true, session },
+      );
 
-    const updatedBooking = await Booking.findByIdAndUpdate(
-      booking[0]._id,
-      {
-        payment: payment[0]._id,
-      },
-      { new: true, runValidators: true, session },
-    )
-      .populate("user", "name email phone address")
-      .populate("tour", "title costFrom")
-      .populate("payment");
+      if (!updatedTour) {
+        const latestTour = await Tour.findById(payload.tour)
+          .select("status isAvailable maxGuest bookedCount")
+          .lean();
 
-    // Create Stripe PaymentIntent — card data never touches our server
-    const stripeResult = await StripeService.createPaymentIntent({
-      amount,
-      bookingId: String(booking[0]._id),
-      userId,
-      transactionId,
+        if (!latestTour || latestTour.status !== "active" || !latestTour.isAvailable) {
+          throw new AppError(
+            httpStatus.BAD_REQUEST,
+            "Tour is not available for booking",
+          );
+        }
+
+        const latestRemainingSeats = Math.max(
+          Number(latestTour.maxGuest ?? 0) - Number(latestTour.bookedCount ?? 0),
+          0,
+        );
+
+        throw new AppError(
+          httpStatus.BAD_REQUEST,
+          `Only ${latestRemainingSeats} seats remaining`,
+        );
+      }
+
+      const [booking] = await Booking.create(
+        [
+          {
+            user: userId,
+            tour: payload.tour,
+            guestCount,
+            bookingDate,
+            pricePerPerson: tour.pricePerPerson,
+            discount,
+            totalPrice,
+            contactInfo: payload.contactInfo,
+            specialRequests: payload.specialRequests,
+            status: BOOKING_STATUS.PENDING,
+          },
+        ],
+        { session },
+      );
+
+      createdBooking = await Booking.findById(booking._id)
+        .session(session)
+        .populate("tour", "title slug pricePerPerson discount startDate endDate images")
+        .populate("user", "name email");
     });
 
-    // Store paymentIntentId for webhook correlation
-    await Payment.findByIdAndUpdate(
-      payment[0]._id,
-      { paymentGatewayData: { paymentIntentId: stripeResult.paymentIntentId } },
-      { runValidators: true, session },
-    );
-
-    await session.commitTransaction();
-    session.endSession();
-
-    return {
-      clientSecret: stripeResult.clientSecret,
-      booking: updatedBooking,
-    };
-  } catch (error) {
-    await session.abortTransaction();
-    session.endSession();
-    throw error;
+    return createdBooking;
+  } finally {
+    await session.endSession();
   }
+};
+
+const attachPaymentsToBookings = async <T extends { _id: unknown }>(bookings: T[]) => {
+  if (!bookings.length) {
+    return [] as (T & { payment: unknown | null })[];
+  }
+
+  const payments = await Payment.find({
+    booking: { $in: bookings.map((booking) => booking._id) },
+  })
+    .select("booking amount status transactionId invoiceUrl method refund paidAt")
+    .lean();
+
+  const paymentMap = new Map(
+    payments.map((payment) => [String(payment.booking), payment]),
+  );
+
+  return bookings.map((booking) => ({
+    ...booking,
+    payment: paymentMap.get(String(booking._id)) ?? null,
+  }));
 };
 
 const getUserBookingsService = async (userData: JwtPayload) => {
@@ -104,65 +201,276 @@ const getUserBookingsService = async (userData: JwtPayload) => {
   if (!isUserExists) {
     throw new AppError(httpStatus.BAD_REQUEST, "User Not Found");
   }
+
   const userBookings = await Booking.find({ user: userData.userId })
     .populate(
       "tour",
-      "title slug costFrom location maxGuest startDate endDate images",
+      "title slug pricePerPerson discount maxGuest startDate endDate images",
     )
-    .populate("payment", "amount status transactionId invoiceUrl");
-  if (!userBookings) {
-    throw new AppError(httpStatus.BAD_REQUEST, "No Booking Found!");
-  }
-  return userBookings;
+    .sort({ createdAt: -1 })
+    .lean();
+
+  return attachPaymentsToBookings(userBookings);
 };
 
-const getBookingByIdService = async (bookingId: string) => {
-  return await Booking.findById(bookingId);
-};
-
-const updateBookingsStatusService = async (
+const getBookingByIdService = async (
   bookingId: string,
-  status: string,
+  requestor: JwtPayload,
+) => {
+  const booking = await Booking.findById(bookingId)
+    .populate(
+      "tour",
+      "title slug pricePerPerson discount maxGuest startDate endDate images",
+    )
+    .populate("user", "name email phone")
+    .lean();
+
+  if (!booking) {
+    throw new AppError(httpStatus.NOT_FOUND, "Booking not found");
+  }
+
+  const isPrivileged =
+    requestor.role === Role.ADMIN || requestor.role === Role.SUPER_ADMIN;
+
+  if (!isPrivileged && String(booking.user._id ?? booking.user) !== requestor.userId) {
+    throw new AppError(httpStatus.FORBIDDEN, "Access denied");
+  }
+
+  const [bookingWithPayment] = await attachPaymentsToBookings([booking]);
+
+  return bookingWithPayment;
+};
+
+const cancelBookingService = async (
+  bookingId: string,
+  userId: string,
+  reason?: string,
 ) => {
   const session = await Booking.startSession();
-  session.startTransaction();
+  let shouldTriggerRefund = false;
+  let cancelledBooking: Awaited<ReturnType<typeof Booking.findById>> | null = null;
 
   try {
-    const updatedBooking = await Booking.findByIdAndUpdate(
-      bookingId,
-      {
-        status: status,
-      },
-      { new: true, runValidators: true, session },
-    );
+    await session.withTransaction(async () => {
+      const booking = await Booking.findOne({ _id: bookingId, user: userId }).session(
+        session,
+      );
 
-    if (updatedBooking) {
-      let paymentStatus = undefined;
-      if (status === "COMPLETE") paymentStatus = PAYMENT_STATUS.PAID;
-      else if (status === "CANCEL") paymentStatus = PAYMENT_STATUS.CANCELLED;
-      else if (status === "FAILED") paymentStatus = PAYMENT_STATUS.FAILED;
+      if (!booking) {
+        throw new AppError(httpStatus.NOT_FOUND, "Booking not found");
+      }
 
-      if (paymentStatus) {
-        await Payment.findOneAndUpdate(
-          { booking: bookingId },
-          { status: paymentStatus },
-          { runValidators: true, session },
+      if (
+        booking.status !== BOOKING_STATUS.PENDING &&
+        booking.status !== BOOKING_STATUS.CONFIRMED
+      ) {
+        throw new AppError(
+          httpStatus.BAD_REQUEST,
+          "Only pending or confirmed bookings can be cancelled",
+        );
+      }
+
+      cancelledBooking = await Booking.findByIdAndUpdate(
+        bookingId,
+        {
+          $set: {
+            status: BOOKING_STATUS.CANCELLED,
+            cancelledAt: new Date(),
+            cancellationReason: reason,
+          },
+        },
+        { new: true, session },
+      )
+        .populate(
+          "tour",
+          "title slug pricePerPerson discount maxGuest startDate endDate images",
+        )
+        .populate("user", "name email");
+
+      await Tour.findByIdAndUpdate(
+        booking.tour,
+        [
+          { $inc: { bookedCount: -booking.guestCount } },
+          {
+            $set: {
+              isAvailable: {
+                $and: [
+                  { $eq: ["$status", "active"] },
+                  {
+                    $lt: [
+                      { $subtract: ["$bookedCount", booking.guestCount] },
+                      "$maxGuest",
+                    ],
+                  },
+                ],
+              },
+            },
+          },
+        ],
+        { session },
+      );
+
+      const payment = await Payment.findOne({ booking: booking._id }).session(session);
+      shouldTriggerRefund = payment?.status === PAYMENT_STATUS.PAID;
+    });
+
+    if (shouldTriggerRefund) {
+      try {
+        const { PaymentService } = await import("../payment/payment.service");
+        await PaymentService.processRefundService(
+          bookingId,
+          reason ?? "Booking cancelled by user",
+        );
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.error(
+          "Refund failed after cancellation — needs manual review:",
+          bookingId,
+          err,
         );
       }
     }
 
-    await session.commitTransaction();
-    session.endSession();
+    return cancelledBooking;
+  } finally {
+    await session.endSession();
+  }
+};
+
+const updateBookingStatusService = async (
+  bookingId: string,
+  status: BOOKING_STATUS,
+  adminUserId: string,
+  reason?: string,
+) => {
+  const session = await Booking.startSession();
+  let shouldTriggerRefund = false;
+  let updatedBooking: Awaited<ReturnType<typeof Booking.findById>> | null = null;
+
+  const allowedTransitions: Record<BOOKING_STATUS, BOOKING_STATUS[]> = {
+    [BOOKING_STATUS.PENDING]: [BOOKING_STATUS.CONFIRMED, BOOKING_STATUS.CANCELLED],
+    [BOOKING_STATUS.CONFIRMED]: [BOOKING_STATUS.CANCELLED],
+    [BOOKING_STATUS.CANCELLED]: [],
+  };
+
+  try {
+    await session.withTransaction(async () => {
+      const booking = await Booking.findById(bookingId).session(session);
+
+      if (!booking) {
+        throw new AppError(httpStatus.NOT_FOUND, "Booking not found");
+      }
+
+      if (booking.status === status) {
+        updatedBooking = await Booking.findById(bookingId)
+          .session(session)
+          .populate(
+            "tour",
+            "title slug pricePerPerson discount maxGuest startDate endDate images",
+          )
+          .populate("user", "name email");
+        return;
+      }
+
+      if (!allowedTransitions[booking.status].includes(status)) {
+        throw new AppError(
+          httpStatus.BAD_REQUEST,
+          `Cannot change booking status from ${booking.status} to ${status}`,
+        );
+      }
+
+      if (status === BOOKING_STATUS.CANCELLED) {
+        updatedBooking = await Booking.findByIdAndUpdate(
+          bookingId,
+          {
+            $set: {
+              status: BOOKING_STATUS.CANCELLED,
+              cancelledAt: new Date(),
+              cancellationReason:
+                reason ?? `Cancelled by admin (${adminUserId})`,
+            },
+          },
+          { new: true, session },
+        )
+          .populate(
+            "tour",
+            "title slug pricePerPerson discount maxGuest startDate endDate images",
+          )
+          .populate("user", "name email");
+
+        await Tour.findByIdAndUpdate(
+          booking.tour,
+          [
+            { $inc: { bookedCount: -booking.guestCount } },
+            {
+              $set: {
+                isAvailable: {
+                  $and: [
+                    { $eq: ["$status", "active"] },
+                    {
+                      $lt: [
+                        { $subtract: ["$bookedCount", booking.guestCount] },
+                        "$maxGuest",
+                      ],
+                    },
+                  ],
+                },
+              },
+            },
+          ],
+          { session },
+        );
+
+        const payment = await Payment.findOne({ booking: booking._id }).session(
+          session,
+        );
+        shouldTriggerRefund = payment?.status === PAYMENT_STATUS.PAID;
+        return;
+      }
+
+      updatedBooking = await Booking.findByIdAndUpdate(
+        bookingId,
+        {
+          $set: {
+            status,
+            cancelledAt: undefined,
+            cancellationReason: undefined,
+          },
+        },
+        { new: true, session },
+      )
+        .populate(
+          "tour",
+          "title slug pricePerPerson discount maxGuest startDate endDate images",
+        )
+        .populate("user", "name email");
+    });
+
+    if (shouldTriggerRefund) {
+      try {
+        const { PaymentService } = await import("../payment/payment.service");
+        await PaymentService.processRefundService(
+          bookingId,
+          reason ?? `Cancelled by admin (${adminUserId})`,
+        );
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.error(
+          "Refund failed after admin cancellation — needs manual review:",
+          bookingId,
+          err,
+        );
+      }
+    }
+
     return updatedBooking;
-  } catch (error) {
-    await session.abortTransaction();
-    session.endSession();
-    throw error;
+  } finally {
+    await session.endSession();
   }
 };
 
 const getAllBookingsService = async (query: Record<string, string>) => {
-  let initialCondition = {};
+  let initialCondition: Record<string, unknown> = {};
 
   if (query.searchTerm) {
     const users = await User.find({
@@ -176,18 +484,18 @@ const getAllBookingsService = async (query: Record<string, string>) => {
 
     const payments = await Payment.find({
       transactionId: { $regex: query.searchTerm, $options: "i" },
-    }).select("_id");
+    }).select("booking");
 
-    const paymentIds = payments.map((p) => p._id);
+    const bookingIdsFromPayments = payments.map((payment) => payment.booking);
 
-    const orConditions: any[] = [];
+    const orConditions: Record<string, unknown>[] = [];
 
     if (userIds.length) {
       orConditions.push({ user: { $in: userIds } });
     }
 
-    if (paymentIds.length) {
-      orConditions.push({ payment: { $in: paymentIds } });
+    if (bookingIdsFromPayments.length) {
+      orConditions.push({ _id: { $in: bookingIdsFromPayments } });
     }
 
     initialCondition =
@@ -198,85 +506,26 @@ const getAllBookingsService = async (query: Record<string, string>) => {
 
   const queryBuilder = new QueryBuilder(Booking.find(initialCondition), query);
 
-  let dataQuery = queryBuilder.filter().search([]).fields();
+  const dataQuery = queryBuilder.filter().search([]).fields().sort().paginate();
 
-  if (query.sort !== "price" && query.sort !== "-price") {
-    dataQuery = dataQuery.sort().paginate();
-  }
-
-  let data = await dataQuery.modelQuery
+  const data = await dataQuery.modelQuery
     .populate("user", "name email phone address")
-    .populate("tour", "title costFrom createdAt")
-    .populate("payment", "amount status transactionId");
+    .populate("tour", "title pricePerPerson discount createdAt")
+    .lean();
 
   const meta = await queryBuilder.getMeta();
 
-  if (query.sort === "price" || query.sort === "-price") {
-    data.sort((a: any, b: any) => {
-      const amountA = a.payment?.amount || 0;
-      const amountB = b.payment?.amount || 0;
-      return query.sort === "price" ? amountA - amountB : amountB - amountA;
-    });
-
-    const page = Number(query.page) || 1;
-    const limit = Number(query.limit) || 10;
-
-    data = data.slice((page - 1) * limit, page * limit);
-  }
-
   return {
     meta,
-    bookings: data,
-  };
-};
-
-/**
- * Re-initiates a Stripe PaymentIntent for an existing PENDING/UNPAID booking.
- * Used by the "Pay Now" button in My Bookings when the user didn't complete checkout.
- */
-const reInitPaymentService = async (bookingId: string, userId: string) => {
-  const booking = await Booking.findById(bookingId)
-    .populate("tour", "title costFrom images location startDate endDate")
-    .populate("payment", "amount transactionId status");
-
-  if (!booking) {
-    throw new AppError(httpStatus.NOT_FOUND, "Booking not found");
-  }
-
-  if (String(booking.user) !== userId) {
-    throw new AppError(httpStatus.FORBIDDEN, "Access denied");
-  }
-
-  const payment = booking.payment as any;
-
-  if (!payment || payment.status === PAYMENT_STATUS.PAID) {
-    throw new AppError(httpStatus.BAD_REQUEST, "This booking is already paid");
-  }
-
-  // Create a fresh PaymentIntent for the same amount
-  const stripeResult = await StripeService.createPaymentIntent({
-    amount: payment.amount,
-    bookingId,
-    userId,
-    transactionId: payment.transactionId,
-  });
-
-  // Update stored paymentIntentId
-  await Payment.findByIdAndUpdate(payment._id, {
-    paymentGatewayData: { paymentIntentId: stripeResult.paymentIntentId },
-  });
-
-  return {
-    clientSecret: stripeResult.clientSecret,
-    booking,
+    bookings: await attachPaymentsToBookings(data),
   };
 };
 
 export const BookingService = {
   createBookingService,
-  updateBookingsStatusService,
+  cancelBookingService,
+  updateBookingStatusService,
   getBookingByIdService,
   getUserBookingsService,
   getAllBookingsService,
-  reInitPaymentService,
 };

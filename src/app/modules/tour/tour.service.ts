@@ -6,8 +6,18 @@ import { ITour, ITourType } from "./tour.interface";
 import { Tour, TourType } from "./tour.model";
 import httpStatus from "http-status-codes";
 
+const sanitizeTourPayload = (payload: Partial<ITour>) => {
+  const sanitizedPayload = { ...payload };
+
+  delete sanitizedPayload.bookedCount;
+  delete sanitizedPayload.averageRating;
+  delete sanitizedPayload.totalReviews;
+
+  return sanitizedPayload;
+};
+
 const createTourTypeService = async (payload: ITourType) => {
-  const isTourTypeExists = await TourType.findOne({ payload });
+  const isTourTypeExists = await TourType.findOne({ name: payload.name });
 
   if (isTourTypeExists) {
     throw new AppError(httpStatus.BAD_REQUEST, "Tour Type already exists!");
@@ -52,7 +62,7 @@ const deleteTourTypeService = async (tourTypeId: string) => {
 };
 
 const createTourService = async (payload: Partial<ITour>) => {
-  const tourInfo = await Tour.create(payload);
+  const tourInfo = await Tour.create(sanitizeTourPayload(payload));
   return tourInfo;
 };
 
@@ -61,6 +71,8 @@ const getAllTourService = async (query: Record<string, string>) => {
     Tour.find()
       .populate("destination")
       .populate("division")
+      .populate("district")
+      .populate("guide", "name email picture")
       .populate("tourType"),
     query,
   );
@@ -86,50 +98,48 @@ const getSingleTourService = async (slug: string) => {
   return await Tour.findOne({ slug })
     .populate("destination")
     .populate("division")
+    .populate("district")
+    .populate("guide", "name email picture")
     .populate("tourType")
     .lean();
 };
 
-const updateTourService = async (tourId: string, payload: Partial<ITour>) => {
+interface ITourUpdatePayload extends Partial<ITour> {
+  deleteImages?: string[];
+}
+
+const updateTourService = async (tourId: string, payload: ITourUpdatePayload) => {
+  const sanitizedPayload = sanitizeTourPayload(payload) as ITourUpdatePayload;
   const isTourExist = await Tour.findById(tourId);
 
   if (!isTourExist) {
     throw new AppError(httpStatus.NOT_FOUND, "Tour Not Found");
   }
 
-  // option : 1
-  // if (
-  //   payload.images &&
-  //   payload.images.length > 0 &&
-  //   isTourExist.images &&
-  //   isTourExist.images.length > 0
-  // ) {
-  //   payload.images = [...payload.images, ...isTourExist.images];
-  // }
+  const existingImages = isTourExist.images || [];
+  const newImages = sanitizedPayload.images || [];
+  const deleteImages = sanitizedPayload.deleteImages || [];
 
-  // option : 2 (here if adding new image we must keep the previous images too)
-  payload.images = [...(payload.images || []), ...(isTourExist.images || [])];
+  sanitizedPayload.images = [
+    ...existingImages.filter((url) => !deleteImages.includes(url)),
+    ...newImages,
+  ];
 
-  if (payload.deleteImages && isTourExist.images) {
-    const restDbImages = isTourExist.images.filter(
-      (imageUrl) => !(payload.images || [])?.includes(imageUrl),
-    );
+  delete sanitizedPayload.deleteImages;
 
-    const updatedPayloadImages = (payload.images || [])
-      .filter((imageUrl) => !payload.deleteImages?.includes(imageUrl))
-      .filter((imageUrl) => !restDbImages.includes(imageUrl));
-
-    payload.images = [...restDbImages, ...updatedPayloadImages];
+  if (
+    typeof sanitizedPayload.maxGuest === "number" &&
+    typeof isTourExist.bookedCount === "number"
+  ) {
+    sanitizedPayload.isAvailable = isTourExist.bookedCount < sanitizedPayload.maxGuest;
   }
 
-  const updatedTourInfo = await Tour.findByIdAndUpdate(tourId, payload, {
+  const updatedTourInfo = await Tour.findByIdAndUpdate(tourId, sanitizedPayload, {
     new: true,
   });
 
-  if (payload.deleteImages && isTourExist.images) {
-    await Promise.all(
-      payload.deleteImages.map((url) => deleteImageFromCloudinary(url)),
-    );
+  if (deleteImages.length > 0) {
+    await Promise.all(deleteImages.map((url) => deleteImageFromCloudinary(url)));
   }
 
   return updatedTourInfo;
