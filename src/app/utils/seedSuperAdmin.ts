@@ -40,3 +40,4 @@ export const seedSuperAdmin = async () => {
     console.log(error);
   }
 };
+

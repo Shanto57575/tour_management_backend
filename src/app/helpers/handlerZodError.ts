@@ -9,14 +9,14 @@ export const handlerZodError = (err: any): TGenericErrorResponse => {
 
   err.issues.forEach((issue: any) => {
     errorSources.push({
-      path: issue.path[issue.path.length - 1],
+      path: issue.path?.length ? issue.path.map(String).join(".") : "",
       message: issue.message,
     });
   });
 
   return {
     statusCode: 400,
-    message: "Zod Error",
+    message: errorSources[0]?.message || "Validation Error",
     errorSources,
   };
 };

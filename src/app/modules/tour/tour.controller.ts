@@ -4,6 +4,8 @@ import { Request, Response } from "express";
 import { catchAsync } from "../../utils/catchAsync";
 import { sendResponse } from "../../utils/sendResponse";
 import { TourService } from "./tour.service";
+import { uploadBufferToCloudinary } from "../../config/cloudinary.config";
+import { Role } from "../user/user.interface";
 
 const createTourType = catchAsync(async (req: Request, res: Response) => {
   const tourTypeInfo = await TourService.createTourTypeService(req.body);
@@ -64,11 +66,22 @@ const deleteTourType = catchAsync(async (req: Request, res: Response) => {
 });
 
 const createTour = catchAsync(async (req: Request, res: Response) => {
+  const files = req.files as Express.Multer.File[];
+  let uploadedImages: string[] | undefined;
+
+  if (files?.length) {
+    const uploadResults = await Promise.all(
+      files.map((f) => uploadBufferToCloudinary(f.buffer, f.originalname)),
+    );
+
+    uploadedImages = uploadResults
+      .filter((r): r is NonNullable<typeof r> => r != null)
+      .map((r) => r.secure_url);
+  }
+
   const payload = {
     ...req.body,
-    images: (req.files as Express.Multer.File[] | undefined)?.map(
-      (file) => file.path,
-    ),
+    images: uploadedImages,
   };
   const tourInfo = await TourService.createTourService(payload);
 
@@ -106,15 +119,27 @@ const getSingleTour = catchAsync(async (req: Request, res: Response) => {
 });
 
 const updateTour = catchAsync(async (req: Request, res: Response) => {
+  const files = req.files as Express.Multer.File[];
+  let uploadedImages: string[] | undefined;
+
+  if (files?.length) {
+    const uploadResults = await Promise.all(
+      files.map((f) => uploadBufferToCloudinary(f.buffer, f.originalname)),
+    );
+
+    uploadedImages = uploadResults
+      .filter((r): r is NonNullable<typeof r> => r != null)
+      .map((r) => r.secure_url);
+  }
+
   const payload = {
     ...req.body,
-    images: (req.files as Express.Multer.File[] | undefined)?.map(
-      (file) => file.path,
-    ),
+    images: uploadedImages,
   };
   const updatedTour = await TourService.updateTourService(
     req.params.id,
-    payload
+    payload,
+    (req.user as { role?: Role } | undefined)?.role,
   );
   sendResponse(res, {
     statusCode: httpStatus.OK,

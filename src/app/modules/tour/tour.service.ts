@@ -5,6 +5,9 @@ import { tourSearchableFields } from "./tour.constant";
 import { ITour, ITourType } from "./tour.interface";
 import { Tour, TourType } from "./tour.model";
 import httpStatus from "http-status-codes";
+import { Role } from "../user/user.interface";
+import { TourLifecycle } from "./tour.lifecycle";
+import { GuideProfile } from "../guide/guideProfile/guideProfile.model";
 
 const sanitizeTourPayload = (payload: Partial<ITour>) => {
   const sanitizedPayload = { ...payload };
@@ -62,7 +65,30 @@ const deleteTourTypeService = async (tourTypeId: string) => {
 };
 
 const createTourService = async (payload: Partial<ITour>) => {
-  const tourInfo = await Tour.create(sanitizeTourPayload(payload));
+  const sanitized = sanitizeTourPayload(payload);
+  const guideUserId = sanitized.guide ? String(sanitized.guide) : null;
+
+  if (guideUserId) {
+    const guideProfile = await GuideProfile.findOne({
+      user: guideUserId,
+      isActive: true,
+      isAvailable: true,
+      ongoingTourId: null,
+    });
+    if (!guideProfile) {
+      throw new AppError(httpStatus.BAD_REQUEST, "Selected guide is not available for assignment");
+    }
+  }
+
+  const tourInfo = await Tour.create(sanitized);
+
+  if (guideUserId) {
+    await GuideProfile.updateOne(
+      { user: guideUserId },
+      { $set: { ongoingTourId: tourInfo._id, isAvailable: false } },
+    );
+  }
+
   return tourInfo;
 };
 
@@ -108,7 +134,11 @@ interface ITourUpdatePayload extends Partial<ITour> {
   deleteImages?: string[];
 }
 
-const updateTourService = async (tourId: string, payload: ITourUpdatePayload) => {
+const updateTourService = async (
+  tourId: string,
+  payload: ITourUpdatePayload,
+  actorRole?: Role,
+) => {
   const sanitizedPayload = sanitizeTourPayload(payload) as ITourUpdatePayload;
   const isTourExist = await Tour.findById(tourId);
 
@@ -116,9 +146,29 @@ const updateTourService = async (tourId: string, payload: ITourUpdatePayload) =>
     throw new AppError(httpStatus.NOT_FOUND, "Tour Not Found");
   }
 
-  const existingImages = isTourExist.images || [];
-  const newImages = sanitizedPayload.images || [];
-  const deleteImages = sanitizedPayload.deleteImages || [];
+  const isPrivilegedAdminActor =
+    actorRole === Role.ADMIN || actorRole === Role.SUPER_ADMIN;
+  const lifecycle = TourLifecycle.resolveTourLifecycleState(
+    isTourExist.startDate,
+    isTourExist.endDate,
+  );
+
+  if (isPrivilegedAdminActor && lifecycle.phase === "running") {
+    throw new AppError(
+      httpStatus.FORBIDDEN,
+      "Running tours cannot be updated by admin or super admin",
+    );
+  }
+
+  const existingImages = (isTourExist.images || []).filter(
+    (img): img is string => typeof img === "string" && img.trim().length > 0,
+  );
+  const newImages = (sanitizedPayload.images || []).filter(
+    (img): img is string => typeof img === "string" && img.trim().length > 0,
+  );
+  const deleteImages = (sanitizedPayload.deleteImages || []).filter(
+    (img): img is string => typeof img === "string" && img.trim().length > 0,
+  );
 
   sanitizedPayload.images = [
     ...existingImages.filter((url) => !deleteImages.includes(url)),
@@ -134,9 +184,44 @@ const updateTourService = async (tourId: string, payload: ITourUpdatePayload) =>
     sanitizedPayload.isAvailable = isTourExist.bookedCount < sanitizedPayload.maxGuest;
   }
 
+  // ─── Guide assignment lock/unlock ─────────────────────────────────────────
+  const previousGuideId = isTourExist.guide ? String(isTourExist.guide) : null;
+  const isGuideInPayload = "guide" in sanitizedPayload;
+  const newGuideId = isGuideInPayload
+    ? sanitizedPayload.guide ? String(sanitizedPayload.guide) : null
+    : previousGuideId;
+  const isGuideChanging = isGuideInPayload && newGuideId !== previousGuideId;
+
+  if (isGuideChanging && newGuideId) {
+    const guideProfile = await GuideProfile.findOne({
+      user: newGuideId,
+      isActive: true,
+      isAvailable: true,
+      ongoingTourId: null,
+    });
+    if (!guideProfile) {
+      throw new AppError(httpStatus.BAD_REQUEST, "Selected guide is not available for assignment");
+    }
+  }
+
   const updatedTourInfo = await Tour.findByIdAndUpdate(tourId, sanitizedPayload, {
     new: true,
   });
+
+  if (isGuideChanging) {
+    if (previousGuideId) {
+      await GuideProfile.updateOne(
+        { user: previousGuideId },
+        { $set: { ongoingTourId: null, isAvailable: true } },
+      );
+    }
+    if (newGuideId) {
+      await GuideProfile.updateOne(
+        { user: newGuideId },
+        { $set: { ongoingTourId: tourId, isAvailable: false } },
+      );
+    }
+  }
 
   if (deleteImages.length > 0) {
     await Promise.all(deleteImages.map((url) => deleteImageFromCloudinary(url)));

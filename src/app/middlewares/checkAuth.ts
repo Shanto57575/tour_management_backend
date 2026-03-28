@@ -11,7 +11,7 @@ export const checkAuth =
   (...authRoles: string[]) =>
   async (req: Request, _res: Response, next: NextFunction) => {
     const accessToken = req.headers.authorization || req.cookies.accessToken;
-
+    console.log("Access Token:", accessToken); // Debug log
     if (!accessToken) {
       throw new AppError(httpStatus.UNAUTHORIZED, "Token Not provided");
     }
@@ -20,6 +20,7 @@ export const checkAuth =
       accessToken,
       envVars.JWT_ACCESS_SECRET,
     ) as JwtPayload;
+    console.log("Verified Token:", verifiedToken); // Debug log
 
     const isUserExists = await User.findOne({
       email: verifiedToken.email,

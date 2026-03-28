@@ -7,6 +7,7 @@ import { validateRequest } from "../../middlewares/validateRequest";
 import { validateGuideUploadFiles } from "../../utils/validateGuideUploadFiles";
 import {
   createGuideApplicationZodSchema,
+  updateGuideActivationZodSchema,
   updateGuideApplicationZodSchema,
   updateGuideStatusZodSchema,
 } from "./guide.validation";
@@ -29,11 +30,24 @@ router.get(
   GuideController.getMyApplication,
 );
 
+router.get(
+  "/my-profile",
+  checkAuth(Role.GUIDE),
+  GuideController.getMyGuideProfile,
+);
+
 router.patch(
   "/:id/status",
   checkAuth(Role.ADMIN, Role.SUPER_ADMIN),
   validateRequest(updateGuideStatusZodSchema),
   GuideController.updateStatus,
+);
+
+router.patch(
+  "/:id/activation",
+  checkAuth(Role.ADMIN, Role.SUPER_ADMIN),
+  validateRequest(updateGuideActivationZodSchema),
+  GuideController.updateActivation,
 );
 
 router.patch(
@@ -43,6 +57,12 @@ router.patch(
   validateGuideUploadFiles,
   validateRequest(updateGuideApplicationZodSchema),
   GuideController.reapply,
+);
+
+router.get(
+  "/available",
+  checkAuth(Role.ADMIN, Role.SUPER_ADMIN),
+  GuideController.getAvailableGuides,
 );
 
 router.get(

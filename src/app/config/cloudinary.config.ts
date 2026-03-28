@@ -57,6 +57,10 @@ export const uploadBufferToCloudinary = async (
 
 export const deleteImageFromCloudinary = async (url: string) => {
   try {
+    if (!url || typeof url !== "string") {
+      return;
+    }
+
     const regex = /\/v\d+\/(.*?)\.(jpg|jpeg|png|gif|webp)$/i;
     const match = url.match(regex);
 

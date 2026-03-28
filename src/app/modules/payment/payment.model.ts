@@ -1,4 +1,3 @@
-// payment.schema.ts
 import { model, Schema } from "mongoose";
 import { IPayment, PAYMENT_STATUS } from "./payment.interface";
 
@@ -38,9 +37,9 @@ const paymentSchema = new Schema<IPayment>(
   { timestamps: true, versionKey: false },
 );
 
-paymentSchema.index({ booking: 1 });
-paymentSchema.index({ transactionId: 1 });
 paymentSchema.index({ status: 1 });
 paymentSchema.index({ method: 1 });
+paymentSchema.index({ booking: 1, status: 1 });
+paymentSchema.index({ createdAt: -1 });
 
 export const Payment = model<IPayment>("Payment", paymentSchema);

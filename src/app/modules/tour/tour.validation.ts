@@ -163,6 +163,16 @@ export const updateTourZodSchema = validateTourDateRange(
     ...Object.fromEntries(
       Object.entries(baseTourZodShape).map(([key, value]) => [key, value.optional()]),
     ),
-    deleteImages: z.array(z.string()).optional(),
+    deleteImages: z
+      .preprocess(
+        (value) => {
+          if (!Array.isArray(value)) return value;
+          return value.filter(
+            (item) => typeof item === "string" && item.trim().length > 0,
+          );
+        },
+        z.array(z.string()).optional(),
+      )
+      .optional(),
   }),
 );

@@ -104,6 +104,7 @@ tourSchema.pre("save", function (next) {
   if (this.maxGuest && this.bookedCount >= this.maxGuest) {
     this.isAvailable = false;
   }
+
   next();
 });
 
@@ -118,6 +119,6 @@ tourSchema.index({ isTrending: 1 });
 tourSchema.index({ pricePerPerson: 1 });
 tourSchema.index({ startDate: 1 });
 tourSchema.index({ slug: 1 });
-tourSchema.index({ status: 1, isAvailable: 1, division: 1 }); // compound for filtering
+tourSchema.index({ status: 1, isAvailable: 1, division: 1 });
 
 export const Tour = model<ITour>("Tour", tourSchema);

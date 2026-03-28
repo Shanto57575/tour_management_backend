@@ -152,3 +152,10 @@ export const updateGuideStatusZodSchema = z.object({
     });
   }
 });
+
+export const updateGuideActivationZodSchema = z.object({
+  isActive: z.boolean({
+    required_error: "isActive is required",
+    invalid_type_error: "isActive must be boolean",
+  }),
+});

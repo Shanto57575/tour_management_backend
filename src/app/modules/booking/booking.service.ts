@@ -50,9 +50,7 @@ const createBookingService = async (
 
     await session.withTransaction(async () => {
       const tour = await Tour.findById(payload.tour)
-        .select(
-          "status isAvailable maxGuest bookedCount pricePerPerson discount",
-        )
+        .select("status isAvailable maxGuest bookedCount pricePerPerson discount")
         .session(session);
 
       if (!tour) {

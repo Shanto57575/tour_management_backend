@@ -4,7 +4,10 @@ import { Server } from "http";
 import mongoose from "mongoose";
 import { envVars } from "./app/config/env";
 import { connectRedis } from "./app/config/redis.config";
+import { startTourLifecycleScheduler } from "./app/utils/tourLifecycle.scheduler";
+// import { seedGuideApplications } from "./scripts/seedGuide";
 // import { seedSuperAdmin } from "./app/utils/seedSuperAdmin";
+// import seedUsers from "./scripts/seedUsers";
 // import { seedDistricts } from "./scripts/seedDistrict";
 
 let server: Server;
@@ -28,7 +31,10 @@ const startServer = async () => {
 (async () => {
   await connectRedis();
   await startServer();
+  // await seedGuideApplications()
+  startTourLifecycleScheduler();
   // await seedSuperAdmin();
+  // await seedUsers()
   // await seedDistricts()
 })();
 

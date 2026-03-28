@@ -10,6 +10,7 @@ import {
 import { GuideApplication } from "./guide.model";
 import { User } from "../user/user.model";
 import { Role } from "../user/user.interface";
+import { GuideProfile } from "./guideProfile/guideProfile.model";
 import { QueryBuilder } from "../../utils/queryBuilder";
 import {
   APPLICATION_FIELD_KEYS,
@@ -22,6 +23,13 @@ import {
   getFileFromFields,
   uploadSingleImage,
 } from "../../utils/guideImageHelpers";
+
+const isDuplicateKeyError = (error: unknown): boolean => {
+  return (
+    error instanceof mongoose.mongo.MongoServerError &&
+    error.code === 11000
+  );
+};
 
 const createGuideApplication = async (
   userId: string,
@@ -198,6 +206,29 @@ const updateApplicationStatus = async (
         user.role = Role.GUIDE;
         await user.save({ session });
       }
+
+      // Keep profile creation in service so it stays within the approval transaction.
+      const existingProfile = await GuideProfile.findOne({ user: user._id }).session(
+        session,
+      );
+
+      if (!existingProfile) {
+        try {
+          await GuideProfile.create(
+            [
+              {
+                user: user._id,
+                application: application._id,
+              },
+            ],
+            { session },
+          );
+        } catch (error) {
+          if (!isDuplicateKeyError(error)) {
+            throw error;
+          }
+        }
+      }
     }
 
     await session.commitTransaction();
@@ -359,9 +390,59 @@ const getAllApplicationsService = async (query: Record<string, string>) => {
     queryBuilder.getMeta(),
   ]);
 
+  const userIds = data
+    .map((application) => {
+      const appUser = application.user as
+        | { _id?: mongoose.Types.ObjectId | string }
+        | mongoose.Types.ObjectId
+        | string;
+
+      if (
+        appUser &&
+        typeof appUser === "object" &&
+        "_id" in appUser &&
+        appUser._id
+      ) {
+        return String(appUser._id);
+      }
+
+      return appUser ? String(appUser) : null;
+    })
+    .filter((id): id is string => Boolean(id));
+
+  const guideProfiles = userIds.length
+    ? await GuideProfile.find({ user: { $in: userIds } })
+        .select("user isActive isAvailable avgRating totalReviews completedTours responseRate isFeatured")
+        .lean()
+    : [];
+
+  const guideProfileMap = new Map(
+    guideProfiles.map((profile) => [String(profile.user), profile]),
+  );
+
+  const applicationsWithProfiles = data.map((application) => {
+    const appUser = application.user as
+      | { _id?: mongoose.Types.ObjectId | string }
+      | mongoose.Types.ObjectId
+      | string;
+    const userId =
+      appUser && typeof appUser === "object" && "_id" in appUser && appUser._id
+        ? String(appUser._id)
+        : appUser
+          ? String(appUser)
+          : "";
+
+    return {
+      ...(typeof application.toObject === "function"
+        ? application.toObject()
+        : application),
+      guideProfile: userId ? guideProfileMap.get(userId) ?? null : null,
+    };
+  });
+
   return {
     meta,
-    applications: data,
+    applications: applicationsWithProfiles,
   };
 };
 
@@ -374,6 +455,58 @@ const getMyApplicationService = async (userId: string) => {
     .sort({ createdAt: -1 });
 
   return application;
+};
+
+const getMyGuideProfileService = async (userId: string) => {
+  const guideProfile = await GuideProfile.findOne({ user: userId })
+    .populate({
+      path: "application",
+      populate: [
+        { path: "division", select: "name" },
+        { path: "district", select: "name" },
+      ],
+    })
+    .lean();
+
+  return guideProfile;
+};
+
+const updateGuideActivationStatus = async (
+  applicationId: string,
+  isActive: boolean,
+) => {
+  const application = await GuideApplication.findById(applicationId)
+    .select("_id status user")
+    .lean();
+
+  if (!application) {
+    throw new AppError(httpStatus.NOT_FOUND, "Guide application not found");
+  }
+
+  if (application.status !== GuideApplicationStatus.APPROVED) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      "Guide activation can only be changed for approved applications",
+    );
+  }
+
+  const guideProfile = await GuideProfile.findOneAndUpdate(
+    { user: application.user },
+    {
+      $set: {
+        user: application.user,
+        application: application._id,
+        isActive,
+      },
+    },
+    {
+      new: true,
+      upsert: true,
+      setDefaultsOnInsert: true,
+    },
+  ).lean();
+
+  return guideProfile;
 };
 
 const getSingleApplicationService = async (applicationId: string) => {
@@ -390,11 +523,52 @@ const getSingleApplicationService = async (applicationId: string) => {
   return application;
 };
 
+const getAvailableGuidesService = async (query: {
+  division?: string;
+  district?: string;
+  specialization?: string;
+}) => {
+  const appFilter: Record<string, unknown> = {
+    status: GuideApplicationStatus.APPROVED,
+  };
+  if (query.division) appFilter.division = query.division;
+  if (query.district) appFilter.district = query.district;
+  if (query.specialization) appFilter.specializations = query.specialization;
+
+  const matchingApplications = await GuideApplication.find(appFilter)
+    .select("_id")
+    .lean();
+
+  const applicationIds = matchingApplications.map((a) => a._id);
+
+  const profiles = await GuideProfile.find({
+    application: { $in: applicationIds },
+    isActive: true,
+    isAvailable: true,
+    ongoingTourId: null,
+  })
+    .populate("user", "name email picture phone")
+    .populate({
+      path: "application",
+      populate: [
+        { path: "division", select: "name" },
+        { path: "district", select: "name" },
+      ],
+      select: "specializations languages experienceYears division district bio",
+    })
+    .lean();
+
+  return profiles;
+};
+
 export const GuideServices = {
   createGuideApplication,
   updateApplicationStatus,
+  updateGuideActivationStatus,
   reapplyGuideApplication,
   getAllApplicationsService,
   getSingleApplicationService,
   getMyApplicationService,
+  getMyGuideProfileService,
+  getAvailableGuidesService,
 };

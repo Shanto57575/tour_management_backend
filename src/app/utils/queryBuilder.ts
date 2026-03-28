@@ -34,14 +34,22 @@ export class QueryBuilder<T> {
       filter.startingPrice = startingPriceRange;
     }
 
-    if (typeof filter.division === "string" && filter.division.includes(",")) {
-      filter.division = {
-        $in: filter.division
+    const multiValueFields = ["division", "district", "tourType"] as const;
+
+    multiValueFields.forEach((field) => {
+      const rawValue = filter[field];
+
+      if (typeof rawValue !== "string" || !rawValue.includes(",")) {
+        return;
+      }
+
+      filter[field] = {
+        $in: rawValue
           .split(",")
-          .map((id) => id.trim())
+          .map((value) => value.trim())
           .filter(Boolean),
       };
-    }
+    });
 
     this.modelQuery = this.modelQuery.find(filter);
     return this;

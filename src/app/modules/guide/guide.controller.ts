@@ -43,6 +43,23 @@ const updateStatus = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
+const updateActivation = catchAsync(async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const { isActive } = req.body;
+
+  const guideProfile = await GuideServices.updateGuideActivationStatus(
+    id,
+    isActive,
+  );
+
+  sendResponse(res, {
+    success: true,
+    statusCode: httpStatus.OK,
+    message: `Guide is now ${isActive ? "active" : "inactive"}`,
+    data: guideProfile,
+  });
+});
+
 const reapply = catchAsync(async (req: Request, res: Response) => {
   const user = req.user as JwtPayload;
   const { id } = req.params;
@@ -87,6 +104,18 @@ const getMyApplication = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
+const getMyGuideProfile = catchAsync(async (req: Request, res: Response) => {
+  const user = req.user as JwtPayload;
+  const guideProfile = await GuideServices.getMyGuideProfileService(user.userId);
+
+  sendResponse(res, {
+    success: true,
+    statusCode: httpStatus.OK,
+    message: "Guide profile retrieved successfully",
+    data: guideProfile,
+  });
+});
+
 const getSingleApplication = catchAsync(async (req: Request, res: Response) => {
   const { id } = req.params;
   const application = await GuideServices.getSingleApplicationService(id);
@@ -99,11 +128,26 @@ const getSingleApplication = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
+const getAvailableGuides = catchAsync(async (req: Request, res: Response) => {
+  const { division, district, specialization } = req.query as Record<string, string>;
+  const guides = await GuideServices.getAvailableGuidesService({ division, district, specialization });
+
+  sendResponse(res, {
+    success: true,
+    statusCode: httpStatus.OK,
+    message: "Available guides retrieved successfully",
+    data: guides,
+  });
+});
+
 export const GuideController = {
   applyForGuide,
   updateStatus,
+  updateActivation,
   reapply,
   getAllApplications,
   getMyApplication,
+  getMyGuideProfile,
   getSingleApplication,
+  getAvailableGuides,
 };
